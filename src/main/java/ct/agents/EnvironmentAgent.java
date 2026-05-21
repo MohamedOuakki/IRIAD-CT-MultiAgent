@@ -15,6 +15,7 @@ import java.util.*;
 
 public class EnvironmentAgent extends Agent {
 
+    private GameConfig config;
     private Grid grid;
     private PathFinder pathFinder;
     private ScoreCalculator scoreCalculator;
@@ -31,65 +32,86 @@ public class EnvironmentAgent extends Agent {
     protected void setup() {
         System.out.println("EnvironmentAgent " + getLocalName() + " started.");
 
+        // Get GameConfig from arguments
+        Object[] args = getArguments();
+        if (args != null && args.length > 0) {
+            config = (GameConfig) args[0];
+        } else {
+            System.out.println("No config provided. Using default (2 players).");
+            config = new GameConfig(2);
+        }
+
+        System.out.println("Game configuration: " + config);
+
         // Initialize grid
-        grid = new Grid();
-        pathFinder = new PathFinder(grid);
+        grid          = new Grid(config);
+        pathFinder    = new PathFinder(grid);
         scoreCalculator = new ScoreCalculator(pathFinder);
 
+        System.out.println(grid);
+
         // Initialize players list
-        players = new ArrayList<>();
-        playerStates = new HashMap<>();
-        gameOver = false;
+        players            = new ArrayList<>();
+        playerStates       = new HashMap<>();
+        gameOver           = false;
         currentPlayerIndex = 0;
 
-        // Wait for player agents to register
+        // Wait for player agents to initialize
         doWait(2000);
 
-        // Register players (hardcoded AIDs for now)
-        AID player1 = new AID("Player1", AID.ISLOCALNAME);
-        AID player2 = new AID("Player2", AID.ISLOCALNAME);
-        players.add(player1);
-        players.add(player2);
+        // Register N players dynamically
+        for (int i = 0; i < config.getNumberOfPlayers(); i++) {
+            AID player = new AID("Player" + (i + 1), AID.ISLOCALNAME);
+            players.add(player);
+        }
 
-        // Initialize player states
+        // Initialize player states dynamically
         initializePlayerStates();
 
-        // Start the game
+        // Broadcast game start
         broadcastMessage(CTOntology.GAME_START, CTOntology.CONV_GAME,
-                         "Game started! Grid is ready.");
+                         "Game started! Grid is " + config.getRows()
+                         + "x" + config.getCols());
 
-        // Add behaviour to manage game turns
+        // Start game manager
         addBehaviour(new GameManagerBehaviour());
     }
 
     // ─── Initialize Player States ────────────────────────────────
 
     private void initializePlayerStates() {
-        // Player 1: starts top-left, goal top-right
-        Cell start1 = grid.getCell(0, 0);
-        Cell goal1  = grid.getCell(0, 6);
-        List<Token> tokens1 = generateRandomTokens(5);
-        playerStates.put(players.get(0),
-            new PlayerState("Player1", start1, goal1, tokens1));
+        for (int i = 0; i < config.getNumberOfPlayers(); i++) {
+            AID playerAID = players.get(i);
 
-        // Player 2: starts bottom-right, goal bottom-left
-        Cell start2 = grid.getCell(4, 6);
-        Cell goal2  = grid.getCell(4, 0);
-        List<Token> tokens2 = generateRandomTokens(5);
-        playerStates.put(players.get(1),
-            new PlayerState("Player2", start2, goal2, tokens2));
+            // Get dynamic start and goal from grid
+            Cell startCell = grid.getStartCell(i);
+            Cell goalCell  = grid.getGoalCell(i);
 
-        System.out.println("Player states initialized.");
-        System.out.println(playerStates.get(players.get(0)));
-        System.out.println(playerStates.get(players.get(1)));
+            // Generate random tokens
+            List<Token> tokens = generateRandomTokens(
+                config.getTokensPerPlayer()
+            );
+
+            PlayerState state = new PlayerState(
+                "Player" + (i + 1),
+                startCell,
+                goalCell,
+                tokens
+            );
+
+            playerStates.put(playerAID, state);
+
+            System.out.println("Initialized: " + state);
+        }
     }
 
     // ─── Generate Random Tokens ──────────────────────────────────
 
     private List<Token> generateRandomTokens(int count) {
-        List<Token> tokens = new ArrayList<>();
+        List<Token> tokens   = new ArrayList<>();
         Token.Color[] colors = Token.Color.values();
-        Random random = new Random();
+        Random random        = new Random();
+
         for (int i = 0; i < count; i++) {
             tokens.add(new Token(colors[random.nextInt(colors.length)]));
         }
@@ -104,15 +126,21 @@ public class EnvironmentAgent extends Agent {
         public void action() {
             if (gameOver) return;
 
-            // Notify current player it's their turn
+            // Get current player
             AID currentPlayer = players.get(currentPlayerIndex);
+            PlayerState state = playerStates.get(currentPlayer);
+
+            System.out.println("=== Turn of " + state.getPlayerName()
+                             + " ===");
+
+            // Notify current player it's their turn
             sendMessage(currentPlayer, CTOntology.YOUR_TURN,
                         CTOntology.CONV_GAME, "Your turn.");
 
             // Wait for player to finish their turn
             MessageTemplate mt = MessageTemplate.and(
                 MessageTemplate.MatchConversationId(CTOntology.CONV_GAME),
-                MessageTemplate.MatchContent(CTOntology.TURN_DONE)
+                MessageTemplate.MatchOntology(CTOntology.ONTOLOGY_NAME)
             );
 
             ACLMessage reply = blockingReceive(mt, 10000);
@@ -120,8 +148,7 @@ public class EnvironmentAgent extends Agent {
             if (reply != null) {
                 handleTurnDone(reply);
             } else {
-                // Player didn't respond in time, treat as blocked
-                PlayerState state = playerStates.get(currentPlayer);
+                // Player didn't respond in time
                 state.incrementBlockedTurns();
                 System.out.println(state.getPlayerName()
                                  + " did not respond. Blocked turns: "
@@ -129,28 +156,46 @@ public class EnvironmentAgent extends Agent {
                 checkBlockedCondition(currentPlayer, state);
             }
 
-            // Switch to next player
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
+            // Move to next player if game still running
+            if (!gameOver) {
+                currentPlayerIndex =
+                    (currentPlayerIndex + 1) % players.size();
+            }
         }
     }
 
     // ─── Handle Turn Done ────────────────────────────────────────
 
     private void handleTurnDone(ACLMessage message) {
-        AID sender = message.getSender();
+        AID sender     = message.getSender();
+        String content = message.getContent();
         PlayerState state = playerStates.get(sender);
 
         if (state == null) return;
 
+        // Ignore unrelated messages
+        if (!content.startsWith(CTOntology.TURN_DONE)
+         && !content.startsWith(CTOntology.BLOCKED)) {
+            return;
+        }
+
         // Check if player reached goal
-        if (state.hasReachedGoal()) {
+        if (content.contains("goalReached=true") || state.hasReachedGoal()) {
             System.out.println(state.getPlayerName() + " reached the goal!");
             endGame(sender);
             return;
         }
 
         // Check if player is blocked
-        checkBlockedCondition(sender, state);
+        if (content.startsWith(CTOntology.BLOCKED)) {
+            checkBlockedCondition(sender, state);
+            return;
+        }
+
+        // Successful turn
+        state.resetBlockedTurns();
+        System.out.println(state.getPlayerName()
+                         + ": completed turn successfully.");
     }
 
     // ─── Check Blocked Condition ─────────────────────────────────
@@ -168,19 +213,43 @@ public class EnvironmentAgent extends Agent {
     private void endGame(AID triggeringPlayer) {
         gameOver = true;
 
-        // Calculate and apply scores
-        for (AID player : players) {
-            PlayerState state = playerStates.get(player);
+        System.out.println("\n========== GAME OVER ==========");
+
+        // Calculate and display scores for all players
+        for (AID playerAID : players) {
+            PlayerState state = playerStates.get(playerAID);
             scoreCalculator.applyFinalScore(state);
             scoreCalculator.printScoreBreakdown(state);
         }
 
+        // Find winner (highest score)
+        announceWinner();
+
         // Notify all players
         broadcastMessage(CTOntology.GAME_OVER, CTOntology.CONV_GAME,
                          "Game over!");
-
-        // Shutdown
         doDelete();
+    }
+
+    // ─── Announce Winner ─────────────────────────────────────────
+
+    private void announceWinner() {
+        AID winner         = null;
+        int highestScore   = Integer.MIN_VALUE;
+
+        for (AID playerAID : players) {
+            PlayerState state = playerStates.get(playerAID);
+            if (state.getScore() > highestScore) {
+                highestScore = state.getScore();
+                winner       = playerAID;
+            }
+        }
+
+        if (winner != null) {
+            System.out.println("🏆 Winner: "
+                             + playerStates.get(winner).getPlayerName()
+                             + " with score: " + highestScore);
+        }
     }
 
     // ─── Messaging Helpers ───────────────────────────────────────

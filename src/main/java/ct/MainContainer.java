@@ -1,6 +1,6 @@
 package main.java.ct;
 
-import main.java.ct.models.Cell;
+import main.java.ct.models.GameConfig;
 import main.java.ct.models.Grid;
 import main.java.ct.models.Token;
 
@@ -11,89 +11,88 @@ import jade.wrapper.AgentContainer;
 import jade.wrapper.AgentController;
 import jade.wrapper.StaleProxyException;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.Scanner;
 
 public class MainContainer {
 
+    private static final Scanner SCANNER = new Scanner(System.in);
+
     public static void main(String[] args) {
 
-        System.out.println("Starting Colored Trails Multi-Agent System...");
+        System.out.println("╔══════════════════════════════════════╗");
+        System.out.println("║   Colored Trails Multi-Agent System  ║");
+        System.out.println("╚══════════════════════════════════════╝");
 
-        // ─── Step 1: Start JADE Runtime ──────────────────────────
-        Runtime runtime = Runtime.instance();
+        // ─── Step 1: Read Number of Players ──────────────────────
+        int numberOfPlayers = readNumberOfPlayers();
 
-        // Enable JADE GUI
-        Profile profile = new ProfileImpl();
-        profile.setParameter(Profile.MAIN_HOST, "localhost");
-        profile.setParameter(Profile.GUI, "true");
+        // ─── Step 2: Create Game Config ───────────────────────────
+        GameConfig config = new GameConfig(numberOfPlayers);
+        System.out.println("\nGame configuration:");
+        System.out.println(config);
 
-        // Create main container
-        AgentContainer mainContainer = runtime.createMainContainer(profile);
-
-        // ─── Step 2: Create Grid ──────────────────────────────────
-        Grid grid = new Grid();
+        // ─── Step 3: Create Grid (for display only) ───────────────
+        Grid grid = new Grid(config);
         System.out.println("Grid initialized:");
         System.out.println(grid);
 
-        // ─── Step 3: Setup Player 1 ───────────────────────────────
-        Cell start1 = grid.getCell(0, 0);
-        Cell goal1  = grid.getCell(0, 6);
-        List<Token> tokens1 = generateRandomTokens(5);
+        // ─── Step 4: Start JADE Runtime ───────────────────────────
+        Runtime runtime  = Runtime.instance();
+        Profile profile  = new ProfileImpl();
+        profile.setParameter(Profile.MAIN_HOST, "localhost");
+        profile.setParameter(Profile.GUI, "true");
 
-        // ─── Step 4: Setup Player 2 ───────────────────────────────
-        Cell start2 = grid.getCell(4, 6);
-        Cell goal2  = grid.getCell(4, 0);
-        List<Token> tokens2 = generateRandomTokens(5);
+        AgentContainer mainContainer =
+            runtime.createMainContainer(profile);
 
         // ─── Step 5: Launch Agents ────────────────────────────────
         try {
-            // Launch EnvironmentAgent
+            // Launch EnvironmentAgent first with config
             AgentController envAgent = mainContainer.createNewAgent(
                 "EnvironmentAgent",
-                "main.java.ct.agents.EnvironmentAgent",
-                new Object[]{}
+                "ct.agents.EnvironmentAgent",
+                new Object[]{ config }
             );
             envAgent.start();
-            System.out.println("EnvironmentAgent launched.");
+            System.out.println("\nEnvironmentAgent launched.");
 
-            // Small delay to let EnvironmentAgent initialize first
-            Thread.sleep(1000);
+            // Delay to let EnvironmentAgent fully initialize
+            Thread.sleep(2000);
 
-            // Launch Player 1
-            AgentController player1 = mainContainer.createNewAgent(
-                "Player1",
-                "main.java.ct.agents.PlayerAgent",
-                new Object[]{
-                    "Player1",
-                    start1,
-                    goal1,
-                    tokens1
-                }
-            );
-            player1.start();
-            System.out.println("Player1 launched."
-                             + " Start: " + start1
-                             + " | Goal: " + goal1
-                             + " | Tokens: " + tokens1);
+            // Launch N PlayerAgents dynamically
+            for (int i = 0; i < numberOfPlayers; i++) {
+                String playerName = "Player" + (i + 1);
 
-            // Launch Player 2
-            AgentController player2 = mainContainer.createNewAgent(
-                "Player2",
-                "main.java.ct.agents.PlayerAgent",
-                new Object[]{
-                    "Player2",
-                    start2,
-                    goal2,
-                    tokens2
-                }
-            );
-            player2.start();
-            System.out.println("Player2 launched."
-                             + " Start: " + start2
-                             + " | Goal: " + goal2
-                             + " | Tokens: " + tokens2);
+                // Get start and goal from grid
+                main.java.ct.models.Cell startCell = grid.getStartCell(i);
+                main.java.ct.models.Cell goalCell  = grid.getGoalCell(i);
+
+                // Generate random tokens
+                java.util.List<Token> tokens =
+                    generateRandomTokens(config.getTokensPerPlayer());
+
+                // Create player agent
+                AgentController player = mainContainer.createNewAgent(
+                    playerName,
+                    "ct.agents.PlayerAgent",
+                    new Object[]{
+                        playerName,
+                        startCell,
+                        goalCell,
+                        tokens,
+                        config
+                    }
+                );
+                player.start();
+
+                System.out.println(playerName + " launched."
+                                 + " Start: "  + startCell
+                                 + " | Goal: " + goalCell
+                                 + " | Tokens: " + tokens);
+
+                // Small delay between player launches
+                Thread.sleep(500);
+            }
 
         } catch (StaleProxyException e) {
             System.err.println("Error creating agents: " + e.getMessage());
@@ -103,21 +102,40 @@ public class MainContainer {
             e.printStackTrace();
         }
 
-        System.out.println("All agents launched. Game is running...");
+        System.out.println("\nAll agents launched. Game is running...");
+    }
+
+    // ─── Read Number of Players ───────────────────────────────────
+
+    private static int readNumberOfPlayers() {
+        int number = 0;
+
+        while (number < 2 || number > 10) {
+            System.out.print("\nEnter number of players (2-10): ");
+            try {
+                number = Integer.parseInt(SCANNER.nextLine().trim());
+                if (number < 2 || number > 10) {
+                    System.out.println("Please enter a number between 2 and 10.");
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a valid number.");
+            }
+        }
+
+        System.out.println("Number of players: " + number);
+        return number;
     }
 
     // ─── Generate Random Tokens ───────────────────────────────────
 
-    private static List<Token> generateRandomTokens(int count) {
-        List<Token> tokens     = new ArrayList<>();
-        Token.Color[] colors   = Token.Color.values();
-        Random random          = new Random();
+    private static java.util.List<Token> generateRandomTokens(int count) {
+        java.util.List<Token> tokens = new java.util.ArrayList<>();
+        Token.Color[] colors         = Token.Color.values();
+        java.util.Random random      = new java.util.Random();
 
         for (int i = 0; i < count; i++) {
             tokens.add(new Token(colors[random.nextInt(colors.length)]));
         }
-
-        System.out.println("Generated tokens: " + tokens);
         return tokens;
     }
 }

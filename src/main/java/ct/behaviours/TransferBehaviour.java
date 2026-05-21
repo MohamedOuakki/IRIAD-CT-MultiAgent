@@ -17,14 +17,16 @@ public class TransferBehaviour extends OneShotBehaviour {
 
     private ACLMessage incomingMessage;
     private PlayerState playerState;
+    private AID selectedPartner;
 
     // ─── Constructor ─────────────────────────────────────────────
 
     public TransferBehaviour(Agent agent, ACLMessage incomingMessage,
-                             PlayerState playerState) {
+                             PlayerState playerState, AID selectedPartner) {
         super(agent);
         this.incomingMessage = incomingMessage;
         this.playerState     = playerState;
+        this.selectedPartner = selectedPartner;
     }
 
     // ─── Action ──────────────────────────────────────────────────
@@ -36,7 +38,7 @@ public class TransferBehaviour extends OneShotBehaviour {
 
         if (content.startsWith(CTOntology.ACCEPT_PROPOSAL)) {
             // We are the proposer, initiate the transfer
-            initiateTransfer(sender);
+            initiateTransfer(selectedPartner != null ? selectedPartner : sender);
         } else if (content.startsWith(CTOntology.TRANSFER_TOKENS)) {
             // We are the receiver, handle incoming tokens
             handleIncomingTransfer(incomingMessage);
@@ -44,7 +46,7 @@ public class TransferBehaviour extends OneShotBehaviour {
             // Transfer confirmed by receiver
             handleTransferConfirmed(incomingMessage);
         } else if (content.startsWith(CTOntology.DENY_TRANSFER)) {
-            // Transfer denied by receiver (cheating / changed mind)
+            // Transfer denied by receiver
             handleTransferDenied(incomingMessage);
         }
     }
@@ -57,7 +59,6 @@ public class TransferBehaviour extends OneShotBehaviour {
                          + receiver.getLocalName());
 
         // Decide which tokens to actually send
-        // NOTE: Agent CAN choose not to honor the agreement (game rule)
         List<Token> tokensToSend = decideTokensToSend();
 
         if (tokensToSend.isEmpty()) {
@@ -74,7 +75,8 @@ public class TransferBehaviour extends OneShotBehaviour {
         }
 
         System.out.println(playerState.getPlayerName()
-                         + ": Sending tokens -> " + tokensToSend);
+                         + ": Sending tokens -> " + tokensToSend
+                         + " to " + receiver.getLocalName());
 
         // Send tokens to partner
         ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
@@ -86,24 +88,25 @@ public class TransferBehaviour extends OneShotBehaviour {
                      + serializeTokens(tokensToSend));
         myAgent.send(msg);
 
-        // Wait for confirmation
+        // Wait for confirmation from selected partner
         waitForConfirmation(receiver);
     }
 
     // ─── Handle Incoming Transfer ────────────────────────────────
 
     private void handleIncomingTransfer(ACLMessage msg) {
-        String content      = msg.getContent();
-        AID sender          = msg.getSender();
-        String tokensStr    = CTOntology.getValue(content,
-                                CTOntology.KEY_TOKENS_GIVE);
+        String content       = msg.getContent();
+        AID sender           = msg.getSender();
+        String tokensStr     = CTOntology.getValue(content,
+                                 CTOntology.KEY_TOKENS_GIVE);
         List<Token> received = deserializeTokens(tokensStr);
 
         System.out.println(playerState.getPlayerName()
-                         + ": Received tokens -> " + received);
+                         + ": Received tokens from "
+                         + sender.getLocalName()
+                         + " -> " + received);
 
-        // Decide whether to confirm or deny
-        // NOTE: Agent CAN also cheat here by denying after receiving
+        // Decide whether to honor the agreement
         boolean willHonor = decideToHonor(received);
 
         if (willHonor) {
@@ -117,10 +120,10 @@ public class TransferBehaviour extends OneShotBehaviour {
             // Send back agreed tokens
             sendConfirmTransfer(sender);
         } else {
-            // Agent cheats — keeps tokens, sends nothing back
+            // Agent cheats
             System.out.println(playerState.getPlayerName()
-                             + ": CHEATED! Keeping received tokens without"
-                             + " sending back agreed tokens.");
+                             + ": CHEATED! Keeping received tokens "
+                             + "without sending back agreed tokens.");
             for (Token token : received) {
                 playerState.addToken(token);
             }
@@ -131,7 +134,6 @@ public class TransferBehaviour extends OneShotBehaviour {
     // ─── Send Confirm Transfer ───────────────────────────────────
 
     private void sendConfirmTransfer(AID receiver) {
-        // Decide which tokens to send back
         List<Token> tokensToSendBack = decideTokensToSend();
 
         // Remove from inventory
@@ -150,7 +152,8 @@ public class TransferBehaviour extends OneShotBehaviour {
 
         System.out.println(playerState.getPlayerName()
                          + ": Sent confirmation with tokens -> "
-                         + tokensToSendBack);
+                         + tokensToSendBack
+                         + " to " + receiver.getLocalName());
     }
 
     // ─── Send Deny Transfer ──────────────────────────────────────
@@ -171,29 +174,30 @@ public class TransferBehaviour extends OneShotBehaviour {
     // ─── Handle Transfer Confirmed ───────────────────────────────
 
     private void handleTransferConfirmed(ACLMessage msg) {
-        String content      = msg.getContent();
-        String tokensStr    = CTOntology.getValue(content,
-                                CTOntology.KEY_TOKENS_GIVE);
+        String content       = msg.getContent();
+        String tokensStr     = CTOntology.getValue(content,
+                                 CTOntology.KEY_TOKENS_GIVE);
         List<Token> received = deserializeTokens(tokensStr);
 
-        // Add received tokens to inventory
         for (Token token : received) {
             playerState.addToken(token);
         }
 
         System.out.println(playerState.getPlayerName()
-                         + ": Transfer confirmed! Received -> " + received
-                         + " | Updated tokens: " + playerState.getTokens());
+                         + ": Transfer confirmed by "
+                         + msg.getSender().getLocalName()
+                         + "! Received -> " + received
+                         + " | Updated tokens: "
+                         + playerState.getTokens());
     }
 
     // ─── Handle Transfer Denied ──────────────────────────────────
 
     private void handleTransferDenied(ACLMessage msg) {
         System.out.println(playerState.getPlayerName()
-                         + ": Transfer was DENIED by partner. "
-                         + "Partner did not honor the agreement!");
-        // Agent keeps whatever tokens it has
-        // Strategy: try to proceed with available tokens
+                         + ": Transfer DENIED by "
+                         + msg.getSender().getLocalName()
+                         + ". Partner did not honor the agreement!");
         System.out.println(playerState.getPlayerName()
                          + ": Proceeding with current tokens: "
                          + playerState.getTokens());
@@ -218,7 +222,9 @@ public class TransferBehaviour extends OneShotBehaviour {
             }
         } else {
             System.out.println(playerState.getPlayerName()
-                             + ": Transfer confirmation timed out.");
+                             + ": Transfer confirmation from "
+                             + partner.getLocalName()
+                             + " timed out.");
         }
     }
 

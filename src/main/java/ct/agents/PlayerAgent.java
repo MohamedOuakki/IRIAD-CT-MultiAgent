@@ -21,8 +21,9 @@ public class PlayerAgent extends Agent {
     private PlayerState state;
     private Grid grid;
     private PathFinder pathFinder;
+    private GameConfig config;
     private AID environmentAgent;
-    private AID partnerAgent;
+    private List<AID> partnerAgents;
 
     // ─── Setup ───────────────────────────────────────────────────
 
@@ -33,13 +34,14 @@ public class PlayerAgent extends Agent {
         // Get arguments passed when agent is created
         Object[] args = getArguments();
 
-        if (args != null && args.length >= 4) {
-            String playerName     = (String) args[0];
-            Cell startPosition    = (Cell)   args[1];
-            Cell goalPosition     = (Cell)   args[2];
+        if (args != null && args.length >= 5) {
+            String playerName      = (String)     args[0];
+            Cell startPosition     = (Cell)       args[1];
+            Cell goalPosition      = (Cell)       args[2];
 
             @SuppressWarnings("unchecked")
-            List<Token> tokens    = (List<Token>) args[3];
+            List<Token> tokens     = (List<Token>) args[3];
+            config                 = (GameConfig)  args[4];
 
             // Initialize player state
             state = new PlayerState(playerName, startPosition,
@@ -47,28 +49,34 @@ public class PlayerAgent extends Agent {
         } else {
             System.err.println(getLocalName()
                              + ": Missing arguments. Using defaults.");
-            // Default fallback state
-            grid = new Grid();
-            state = new PlayerState(
+            config = new GameConfig(2);
+            grid   = new Grid(config);
+            state  = new PlayerState(
                 getLocalName(),
                 grid.getCell(0, 0),
-                grid.getCell(0, 6),
+                grid.getCell(0, config.getCols() - 1),
                 new ArrayList<>()
             );
         }
 
-        // Initialize grid and pathfinder
-        grid       = new Grid();
+        // Initialize grid and pathfinder using config
+        grid       = new Grid(config);
         pathFinder = new PathFinder(grid);
 
-        // Set known agents
+        // Set environment agent
         environmentAgent = new AID("EnvironmentAgent", AID.ISLOCALNAME);
-        partnerAgent     = new AID(
-            getLocalName().equals("Player1") ? "Player2" : "Player1",
-            AID.ISLOCALNAME
-        );
+
+        // Build list of all partner agents dynamically
+        partnerAgents = new ArrayList<>();
+        for (int i = 0; i < config.getNumberOfPlayers(); i++) {
+            String partnerName = "Player" + (i + 1);
+            if (!partnerName.equals(getLocalName())) {
+                partnerAgents.add(new AID(partnerName, AID.ISLOCALNAME));
+            }
+        }
 
         System.out.println("PlayerAgent initialized: " + state);
+        System.out.println("Partners: " + partnerAgents);
 
         // Start listening for messages
         addBehaviour(new ListenBehaviour());
@@ -80,7 +88,6 @@ public class PlayerAgent extends Agent {
 
         @Override
         public void action() {
-            // Listen for any incoming message
             MessageTemplate mt = MessageTemplate.MatchOntology(
                 CTOntology.ONTOLOGY_NAME
             );
@@ -109,14 +116,15 @@ public class PlayerAgent extends Agent {
         // Negotiation messages
         else if (convId.equals(CTOntology.CONV_NEGOTIATION)) {
             addBehaviour(new NegotiationBehaviour(
-                PlayerAgent.this, msg, state, pathFinder, partnerAgent
+                PlayerAgent.this, msg, state,
+                pathFinder, partnerAgents
             ));
         }
 
         // Transfer messages
         else if (convId.equals(CTOntology.CONV_TRANSFER)) {
             addBehaviour(new TransferBehaviour(
-                PlayerAgent.this, msg, state
+                PlayerAgent.this, msg, state, null
             ));
         }
     }
@@ -152,7 +160,7 @@ public class PlayerAgent extends Agent {
         );
 
         if (path.isEmpty() || path.size() == 1) {
-            // Already at goal or no path
+            // Already at goal or no path found
             notifyTurnDone();
             return;
         }
@@ -173,7 +181,8 @@ public class PlayerAgent extends Agent {
                              + nextCell.getColor()
                              + ". Starting negotiation...");
             addBehaviour(new NegotiationBehaviour(
-                PlayerAgent.this, null, state, pathFinder, partnerAgent
+                PlayerAgent.this, null, state,
+                pathFinder, partnerAgents
             ));
         }
     }
@@ -209,8 +218,12 @@ public class PlayerAgent extends Agent {
         return environmentAgent;
     }
 
-    public AID getPartnerAgent() {
-        return partnerAgent;
+    public List<AID> getPartnerAgents() {
+        return partnerAgents;
+    }
+
+    public GameConfig getConfig() {
+        return config;
     }
 
     // ─── Takedown ────────────────────────────────────────────────
