@@ -3,6 +3,9 @@
 
 # Log file
 *.log
+APDescription.txt
+MTPs-*.txt
+bin/
 
 # BlueJ files
 *.ctxt

@@ -1,8 +1,10 @@
 package main.java.ct.behaviours;
 
+import main.java.ct.agents.PlayerAgent;
 import main.java.ct.models.*;
 import main.java.ct.ontology.CTOntology;
 import main.java.ct.utils.PathFinder;
+import main.java.ct.gui.SimulationUI;
 
 import jade.core.AID;
 import jade.core.Agent;
@@ -12,6 +14,7 @@ import jade.lang.acl.MessageTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class NegotiationBehaviour extends OneShotBehaviour {
 
@@ -20,6 +23,9 @@ public class NegotiationBehaviour extends OneShotBehaviour {
     private PathFinder pathFinder;
     private List<AID> partnerAgents;
     private AID selectedPartner;
+    private Random random;
+
+    private static final double RANDOM_ACCEPT_PROBABILITY = 0.50;
 
     // ─── Constructor ─────────────────────────────────────────────
 
@@ -32,6 +38,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         this.pathFinder      = pathFinder;
         this.partnerAgents   = partnerAgents;
         this.selectedPartner = null;
+        this.random          = new Random();
     }
 
     // ─── Action ──────────────────────────────────────────────────
@@ -71,16 +78,23 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         if (missingTokens.isEmpty()) {
             System.out.println(playerState.getPlayerName()
                              + ": No tokens needed, no proposal necessary.");
+            ((PlayerAgent) myAgent).finishTurnAfterNegotiation();
             return;
         }
+
+        List<Token> requestedTokens = new ArrayList<>();
+        requestedTokens.add(missingTokens.get(0));
 
         // Try each partner until one accepts
         for (AID partner : partnerAgents) {
             System.out.println(playerState.getPlayerName()
                              + ": Trying to negotiate with "
                              + partner.getLocalName());
+            SimulationUI.log(playerState.getPlayerName()
+                           + " propose une negociation a "
+                           + partner.getLocalName());
 
-            boolean accepted = sendProposalTo(partner, path, missingTokens);
+            boolean accepted = sendProposalTo(partner, path, requestedTokens);
 
             if (accepted) {
                 selectedPartner = partner;
@@ -98,6 +112,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         System.out.println(playerState.getPlayerName()
                          + ": All partners rejected. "
                          + "Will proceed with available tokens.");
+        ((PlayerAgent) myAgent).finishTurnAfterNegotiation();
     }
 
     // ─── Send Proposal To Specific Partner ───────────────────────
@@ -126,6 +141,11 @@ public class NegotiationBehaviour extends OneShotBehaviour {
                      + CTOntology.KEY_TOKENS_WANT + "="
                      + serializeTokens(tokensToReceive));
         myAgent.send(msg);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                partner.getLocalName(),
+                                CTOntology.CONV_NEGOTIATION,
+                                msg.getContent());
+        SimulationUI.pause(900);
 
         System.out.println(playerState.getPlayerName()
                          + ": Sent proposal to "
@@ -178,40 +198,61 @@ public class NegotiationBehaviour extends OneShotBehaviour {
                          + sender.getLocalName()
                          + " | They give: " + theyGive
                          + " | They want: " + theyWant);
+        SimulationUI.log(playerState.getPlayerName()
+                       + " recoit une offre de " + sender.getLocalName()
+                       + " | donne: " + theyGive
+                       + " | demande: " + theyWant);
 
-        // Evaluate offer
-        boolean canFulfill = canFulfillRequest(theyWant);
-        boolean isUseful   = isOfferUseful(theyGive);
+        String decisionReason = evaluateOffer(theyGive, theyWant);
+        boolean accepted = decisionReason.startsWith("ACCEPT");
 
-        if (canFulfill && isUseful) {
-            acceptProposal(sender, theyGive, theyWant);
+        if (accepted) {
+            acceptProposal(sender, theyGive, theyWant, decisionReason);
         } else {
-            rejectProposal(sender);
+            rejectProposal(sender, decisionReason);
         }
     }
 
     // ─── Accept Proposal ─────────────────────────────────────────
 
     private void acceptProposal(AID sender, List<Token> theyGive,
-                                List<Token> theyWant) {
+                                List<Token> theyWant,
+                                String decisionReason) {
         System.out.println(playerState.getPlayerName()
                          + ": Accepting proposal from "
-                         + sender.getLocalName());
+                         + sender.getLocalName()
+                         + " | " + decisionReason);
+        SimulationUI.log(playerState.getPlayerName()
+                       + " (" + playerState.getPersonality()
+                       + ") accepte: " + decisionReason);
 
         ACLMessage reply = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
         reply.addReceiver(sender);
         reply.setOntology(CTOntology.ONTOLOGY_NAME);
         reply.setConversationId(CTOntology.CONV_NEGOTIATION);
-        reply.setContent(CTOntology.ACCEPT_PROPOSAL);
+        reply.setContent(CTOntology.ACCEPT_PROPOSAL + ";"
+                     + CTOntology.KEY_TOKENS_GIVE + "="
+                     + serializeTokens(theyWant) + ";"
+                     + CTOntology.KEY_TOKENS_WANT + "="
+                     + serializeTokens(theyGive));
         myAgent.send(reply);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                sender.getLocalName(),
+                                CTOntology.CONV_NEGOTIATION,
+                                reply.getContent());
+        SimulationUI.pause(700);
     }
 
     // ─── Reject Proposal ─────────────────────────────────────────
 
-    private void rejectProposal(AID sender) {
+    private void rejectProposal(AID sender, String decisionReason) {
         System.out.println(playerState.getPlayerName()
                          + ": Rejecting proposal from "
-                         + sender.getLocalName());
+                         + sender.getLocalName()
+                         + " | " + decisionReason);
+        SimulationUI.log(playerState.getPlayerName()
+                       + " (" + playerState.getPersonality()
+                       + ") refuse: " + decisionReason);
 
         ACLMessage reply = new ACLMessage(ACLMessage.REJECT_PROPOSAL);
         reply.addReceiver(sender);
@@ -219,6 +260,11 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         reply.setConversationId(CTOntology.CONV_NEGOTIATION);
         reply.setContent(CTOntology.REJECT_PROPOSAL);
         myAgent.send(reply);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                sender.getLocalName(),
+                                CTOntology.CONV_NEGOTIATION,
+                                reply.getContent());
+        SimulationUI.pause(700);
     }
 
     // ─── Handle Acceptance ───────────────────────────────────────
@@ -231,6 +277,9 @@ public class NegotiationBehaviour extends OneShotBehaviour {
                          + ": Proposal accepted by "
                          + selectedPartner.getLocalName()
                          + "! Proceeding to transfer.");
+        SimulationUI.log(playerState.getPlayerName()
+                       + " a une offre acceptee par "
+                       + selectedPartner.getLocalName());
 
         // Pass selectedPartner to TransferBehaviour
         myAgent.addBehaviour(new TransferBehaviour(
@@ -244,6 +293,9 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         System.out.println(playerState.getPlayerName()
                          + ": Proposal rejected by "
                          + msg.getSender().getLocalName());
+        SimulationUI.log(playerState.getPlayerName()
+                       + " a une offre rejetee par "
+                       + msg.getSender().getLocalName());
     }
 
     // ─── Getter ──────────────────────────────────────────────────
@@ -261,6 +313,67 @@ public class NegotiationBehaviour extends OneShotBehaviour {
             }
         }
         return true;
+    }
+
+    private String evaluateOffer(List<Token> offered, List<Token> requested) {
+        if (!canFulfillRequest(requested)) {
+            return "REJECT cannot provide requested tokens " + requested;
+        }
+
+        int usefulOffered = countUsefulOfferedTokens(offered);
+
+        switch (playerState.getPersonality()) {
+            case COOPERATIVE:
+                if (!offered.isEmpty() || requested.size() <= 1) {
+                    return "ACCEPT cooperative offer is reasonable";
+                }
+                return "REJECT cooperative offer gives nothing useful";
+
+            case SELFISH:
+                if (usefulOffered > 0 && offered.size() > requested.size()) {
+                    return "ACCEPT selfish offer clearly improves my situation";
+                }
+                return "REJECT selfish offer is too weak";
+
+            case OPPORTUNIST:
+                if (usefulOffered > 0) {
+                    return "ACCEPT opportunist offered token is useful for my future path";
+                }
+                return "REJECT opportunist offered tokens are not useful";
+
+            case CHEATER:
+                if (!offered.isEmpty()) {
+                    return "ACCEPT cheater may exploit this accepted offer";
+                }
+                return "REJECT cheater sees no gain";
+
+            case RANDOM:
+            default:
+                boolean randomAccept = random.nextDouble() < RANDOM_ACCEPT_PROBABILITY;
+                return randomAccept
+                    ? "ACCEPT random decision passed probability check"
+                    : "REJECT random decision failed probability check";
+        }
+    }
+
+    private int countUsefulOfferedTokens(List<Token> offered) {
+        List<Cell> myPath = pathFinder.findShortestPath(
+            playerState.getCurrentPosition(),
+            playerState.getGoalPosition()
+        );
+        List<Token> missing = pathFinder.getMissingTokens(playerState, myPath);
+        int useful = 0;
+
+        for (Token token : offered) {
+            for (int i = 0; i < missing.size(); i++) {
+                if (missing.get(i).getColor() == token.getColor()) {
+                    useful++;
+                    missing.remove(i);
+                    break;
+                }
+            }
+        }
+        return useful;
     }
 
     private boolean isOfferUseful(List<Token> offered) {
@@ -296,6 +409,10 @@ public class NegotiationBehaviour extends OneShotBehaviour {
             if (count >= 2) break;
             surplus.add(token);
             count++;
+        }
+
+        if (surplus.isEmpty() && !playerState.getTokens().isEmpty()) {
+            surplus.add(playerState.getTokens().get(0));
         }
 
         return surplus;

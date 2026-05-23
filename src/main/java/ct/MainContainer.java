@@ -2,7 +2,8 @@ package main.java.ct;
 
 import main.java.ct.models.GameConfig;
 import main.java.ct.models.Grid;
-import main.java.ct.models.Token;
+import main.java.ct.models.PlayerState;
+import main.java.ct.utils.TokenDistributor;
 
 import jade.core.Profile;
 import jade.core.ProfileImpl;
@@ -11,6 +12,9 @@ import jade.wrapper.AgentContainer;
 import jade.wrapper.AgentController;
 import jade.wrapper.StaleProxyException;
 
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.util.List;
 import java.util.Scanner;
 
 public class MainContainer {
@@ -35,11 +39,15 @@ public class MainContainer {
         Grid grid = new Grid(config);
         System.out.println("Grid initialized:");
         System.out.println(grid);
+        TokenDistributor distributor = new TokenDistributor(config, grid);
+        List<PlayerState> playerStates = distributor.createInitialPlayerStates();
 
         // ─── Step 4: Start JADE Runtime ───────────────────────────
         Runtime runtime  = Runtime.instance();
         Profile profile  = new ProfileImpl();
         profile.setParameter(Profile.MAIN_HOST, "localhost");
+        profile.setParameter(Profile.LOCAL_PORT,
+                             String.valueOf(findAvailablePort(1099)));
         profile.setParameter(Profile.GUI, "true");
 
         AgentContainer mainContainer =
@@ -50,45 +58,40 @@ public class MainContainer {
             // Launch EnvironmentAgent first with config
             AgentController envAgent = mainContainer.createNewAgent(
                 "EnvironmentAgent",
-                "ct.agents.EnvironmentAgent",
-                new Object[]{ config }
+                "main.java.ct.agents.EnvironmentAgent",
+                new Object[]{ config, grid, playerStates }
             );
             envAgent.start();
             System.out.println("\nEnvironmentAgent launched.");
 
             // Delay to let EnvironmentAgent fully initialize
-            Thread.sleep(2000);
+            Thread.sleep(500);
 
             // Launch N PlayerAgents dynamically
             for (int i = 0; i < numberOfPlayers; i++) {
-                String playerName = "Player" + (i + 1);
-
-                // Get start and goal from grid
-                main.java.ct.models.Cell startCell = grid.getStartCell(i);
-                main.java.ct.models.Cell goalCell  = grid.getGoalCell(i);
-
-                // Generate random tokens
-                java.util.List<Token> tokens =
-                    generateRandomTokens(config.getTokensPerPlayer());
+                PlayerState state = playerStates.get(i);
 
                 // Create player agent
                 AgentController player = mainContainer.createNewAgent(
-                    playerName,
-                    "ct.agents.PlayerAgent",
+                    state.getPlayerName(),
+                    "main.java.ct.agents.PlayerAgent",
                     new Object[]{
-                        playerName,
-                        startCell,
-                        goalCell,
-                        tokens,
+                        state,
+                        grid,
                         config
                     }
                 );
                 player.start();
 
-                System.out.println(playerName + " launched."
-                                 + " Start: "  + startCell
-                                 + " | Goal: " + goalCell
-                                 + " | Tokens: " + tokens);
+                System.out.println(state.getPlayerName() + " launched."
+                                 + " Start: "  + state.getCurrentPosition()
+                                 + " | Goal: " + state.getGoalPosition()
+                                 + " | Distance: "
+                                 + distanceBetween(state.getCurrentPosition(),
+                                                   state.getGoalPosition())
+                                 + " | Personality: "
+                                 + state.getPersonality()
+                                 + " | Tokens: " + state.getTokens());
 
                 // Small delay between player launches
                 Thread.sleep(500);
@@ -128,14 +131,22 @@ public class MainContainer {
 
     // ─── Generate Random Tokens ───────────────────────────────────
 
-    private static java.util.List<Token> generateRandomTokens(int count) {
-        java.util.List<Token> tokens = new java.util.ArrayList<>();
-        Token.Color[] colors         = Token.Color.values();
-        java.util.Random random      = new java.util.Random();
-
-        for (int i = 0; i < count; i++) {
-            tokens.add(new Token(colors[random.nextInt(colors.length)]));
+    private static int findAvailablePort(int startPort) {
+        int port = startPort;
+        while (port < startPort + 100) {
+            try (ServerSocket socket = new ServerSocket(port)) {
+                socket.setReuseAddress(true);
+                return port;
+            } catch (IOException e) {
+                port++;
+            }
         }
-        return tokens;
+        return startPort;
+    }
+
+    private static int distanceBetween(main.java.ct.models.Cell first,
+                                       main.java.ct.models.Cell second) {
+        return Math.abs(first.getRow() - second.getRow())
+             + Math.abs(first.getCol() - second.getCol());
     }
 }

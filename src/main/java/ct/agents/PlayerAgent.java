@@ -3,6 +3,7 @@ package main.java.ct.agents;
 import main.java.ct.behaviours.MoveBehaviour;
 import main.java.ct.behaviours.NegotiationBehaviour;
 import main.java.ct.behaviours.TransferBehaviour;
+import main.java.ct.gui.SimulationUI;
 import main.java.ct.models.*;
 import main.java.ct.ontology.CTOntology;
 import main.java.ct.utils.PathFinder;
@@ -34,7 +35,11 @@ public class PlayerAgent extends Agent {
         // Get arguments passed when agent is created
         Object[] args = getArguments();
 
-        if (args != null && args.length >= 5) {
+        if (args != null && args.length >= 3 && args[0] instanceof PlayerState) {
+            state  = (PlayerState) args[0];
+            grid   = (Grid) args[1];
+            config = (GameConfig) args[2];
+        } else if (args != null && args.length >= 5) {
             String playerName      = (String)     args[0];
             Cell startPosition     = (Cell)       args[1];
             Cell goalPosition      = (Cell)       args[2];
@@ -60,7 +65,9 @@ public class PlayerAgent extends Agent {
         }
 
         // Initialize grid and pathfinder using config
-        grid       = new Grid(config);
+        if (grid == null) {
+            grid = new Grid(config);
+        }
         pathFinder = new PathFinder(grid);
 
         // Set environment agent
@@ -76,6 +83,10 @@ public class PlayerAgent extends Agent {
         }
 
         System.out.println("PlayerAgent initialized: " + state);
+        System.out.println(state.getPlayerName()
+                         + " personality: " + state.getPersonality());
+        SimulationUI.log(state.getPlayerName()
+                       + " personality: " + state.getPersonality());
         System.out.println("Partners: " + partnerAgents);
 
         // Start listening for messages
@@ -107,6 +118,8 @@ public class PlayerAgent extends Agent {
     private void handleMessage(ACLMessage msg) {
         String content = msg.getContent();
         String convId  = msg.getConversationId();
+        SimulationUI.logMessage(msg.getSender().getLocalName(),
+                                state.getPlayerName(), convId, content);
 
         // Game control messages
         if (convId.equals(CTOntology.CONV_GAME)) {
@@ -136,10 +149,12 @@ public class PlayerAgent extends Agent {
         if (content.startsWith(CTOntology.GAME_START)) {
             System.out.println(state.getPlayerName()
                              + ": Game started! My state: " + state);
+            SimulationUI.updatePlayer(state);
         }
 
         else if (content.startsWith(CTOntology.YOUR_TURN)) {
             System.out.println(state.getPlayerName() + ": It's my turn!");
+            SimulationUI.log(state.getPlayerName() + " joue son tour");
             playTurn();
         }
 
@@ -147,6 +162,7 @@ public class PlayerAgent extends Agent {
             System.out.println(state.getPlayerName()
                              + ": Game over! My final score: "
                              + state.getScore());
+            SimulationUI.updatePlayer(state);
             doDelete();
         }
     }
@@ -180,6 +196,9 @@ public class PlayerAgent extends Agent {
                              + ": Missing token "
                              + nextCell.getColor()
                              + ". Starting negotiation...");
+            SimulationUI.log(state.getPlayerName()
+                           + " manque un jeton " + nextCell.getColor()
+                           + " et lance une negociation");
             addBehaviour(new NegotiationBehaviour(
                 PlayerAgent.this, null, state,
                 pathFinder, partnerAgents
@@ -196,11 +215,57 @@ public class PlayerAgent extends Agent {
         msg.setConversationId(CTOntology.CONV_GAME);
         msg.setContent(CTOntology.TURN_DONE);
         send(msg);
+        SimulationUI.logMessage(state.getPlayerName(), "EnvironmentAgent",
+                                CTOntology.CONV_GAME, msg.getContent());
         System.out.println(state.getPlayerName()
                          + ": Turn done. Notified environment.");
     }
 
     // ─── Getters ─────────────────────────────────────────────────
+
+    public void finishTurnAfterNegotiation() {
+        List<Cell> path = pathFinder.findShortestPath(
+            state.getCurrentPosition(),
+            state.getGoalPosition()
+        );
+
+        if (path.isEmpty()) {
+            notifyBlocked("No path to goal");
+            return;
+        }
+
+        if (path.size() == 1) {
+            notifyTurnDone();
+            return;
+        }
+
+        Cell nextCell = path.get(1);
+        if (state.hasToken(nextCell.getColor())) {
+            addBehaviour(new MoveBehaviour(
+                PlayerAgent.this, state, nextCell, environmentAgent
+            ));
+        } else {
+            notifyBlocked("Missing token " + nextCell.getColor());
+        }
+    }
+
+    public void notifyBlocked(String reason) {
+        state.incrementBlockedTurns();
+        SimulationUI.updatePlayer(state);
+        SimulationUI.log(state.getPlayerName() + " bloque: " + reason);
+
+        ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
+        msg.addReceiver(environmentAgent);
+        msg.setOntology(CTOntology.ONTOLOGY_NAME);
+        msg.setConversationId(CTOntology.CONV_GAME);
+        msg.setContent(CTOntology.BLOCKED + ";"
+                     + CTOntology.KEY_PLAYER_NAME + "="
+                     + state.getPlayerName()
+                     + ";reason=" + reason);
+        send(msg);
+        SimulationUI.logMessage(state.getPlayerName(), "EnvironmentAgent",
+                                CTOntology.CONV_GAME, msg.getContent());
+    }
 
     public PlayerState getPlayerState() {
         return state;

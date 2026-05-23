@@ -4,6 +4,7 @@ import main.java.ct.models.*;
 import main.java.ct.ontology.CTOntology;
 import main.java.ct.utils.PathFinder;
 import main.java.ct.utils.ScoreCalculator;
+import main.java.ct.gui.SimulationUI;
 
 import jade.core.Agent;
 import jade.core.AID;
@@ -32,19 +33,19 @@ public class EnvironmentAgent extends Agent {
     protected void setup() {
         System.out.println("EnvironmentAgent " + getLocalName() + " started.");
 
-        // Get GameConfig from arguments
+        // Get shared game data from arguments
         Object[] args = getArguments();
-        if (args != null && args.length > 0) {
+        if (args != null && args.length >= 3) {
             config = (GameConfig) args[0];
+            grid   = (Grid) args[1];
         } else {
             System.out.println("No config provided. Using default (2 players).");
             config = new GameConfig(2);
+            grid   = new Grid(config);
         }
 
         System.out.println("Game configuration: " + config);
 
-        // Initialize grid
-        grid          = new Grid(config);
         pathFinder    = new PathFinder(grid);
         scoreCalculator = new ScoreCalculator(pathFinder);
 
@@ -52,7 +53,7 @@ public class EnvironmentAgent extends Agent {
 
         // Initialize players list
         players            = new ArrayList<>();
-        playerStates       = new HashMap<>();
+        playerStates       = new LinkedHashMap<>();
         gameOver           = false;
         currentPlayerIndex = 0;
 
@@ -66,7 +67,16 @@ public class EnvironmentAgent extends Agent {
         }
 
         // Initialize player states dynamically
-        initializePlayerStates();
+        if (args != null && args.length >= 3) {
+            initializePlayerStatesFromArgs(args[2]);
+        } else {
+            initializePlayerStates();
+        }
+
+        SimulationUI.show(grid, playerStates.values());
+        SimulationUI.log("Simulation demarree avec " + players.size()
+                       + " agents sur une grille " + config.getRows()
+                       + "x" + config.getCols());
 
         // Broadcast game start
         broadcastMessage(CTOntology.GAME_START, CTOntology.CONV_GAME,
@@ -105,6 +115,17 @@ public class EnvironmentAgent extends Agent {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private void initializePlayerStatesFromArgs(Object stateArg) {
+        List<PlayerState> states = (List<PlayerState>) stateArg;
+        for (int i = 0; i < states.size(); i++) {
+            PlayerState state = states.get(i);
+            AID playerAID = players.get(i);
+            playerStates.put(playerAID, state);
+            System.out.println("Initialized: " + state);
+        }
+    }
+
     // ─── Generate Random Tokens ──────────────────────────────────
 
     private List<Token> generateRandomTokens(int count) {
@@ -132,10 +153,14 @@ public class EnvironmentAgent extends Agent {
 
             System.out.println("=== Turn of " + state.getPlayerName()
                              + " ===");
+            SimulationUI.log("Tour de " + state.getPlayerName());
+            SimulationUI.setActivePlayer(state.getPlayerName());
+            SimulationUI.pause(500);
 
             // Notify current player it's their turn
             sendMessage(currentPlayer, CTOntology.YOUR_TURN,
                         CTOntology.CONV_GAME, "Your turn.");
+            SimulationUI.pause(450);
 
             // Wait for player to finish their turn
             MessageTemplate mt = MessageTemplate.and(
@@ -153,6 +178,10 @@ public class EnvironmentAgent extends Agent {
                 System.out.println(state.getPlayerName()
                                  + " did not respond. Blocked turns: "
                                  + state.getBlockedTurns());
+                SimulationUI.updatePlayer(state);
+                SimulationUI.log(state.getPlayerName()
+                               + " ne repond pas. Blocage "
+                               + state.getBlockedTurns() + "/3");
                 checkBlockedCondition(currentPlayer, state);
             }
 
@@ -182,6 +211,8 @@ public class EnvironmentAgent extends Agent {
         // Check if player reached goal
         if (content.contains("goalReached=true") || state.hasReachedGoal()) {
             System.out.println(state.getPlayerName() + " reached the goal!");
+            SimulationUI.updatePlayer(state);
+            SimulationUI.log(state.getPlayerName() + " a atteint le but");
             endGame(sender);
             return;
         }
@@ -194,6 +225,7 @@ public class EnvironmentAgent extends Agent {
 
         // Successful turn
         state.resetBlockedTurns();
+        SimulationUI.updatePlayer(state);
         System.out.println(state.getPlayerName()
                          + ": completed turn successfully.");
     }
@@ -204,6 +236,8 @@ public class EnvironmentAgent extends Agent {
         if (state.isBlocked()) {
             System.out.println(state.getPlayerName()
                              + " is blocked for 3 turns. Game over.");
+            SimulationUI.log(state.getPlayerName()
+                           + " est bloque pendant 3 tours");
             endGame(player);
         }
     }
@@ -219,7 +253,9 @@ public class EnvironmentAgent extends Agent {
         for (AID playerAID : players) {
             PlayerState state = playerStates.get(playerAID);
             scoreCalculator.applyFinalScore(state);
+            SimulationUI.updatePlayer(state);
             scoreCalculator.printScoreBreakdown(state);
+            SimulationUI.log(scoreCalculator.buildScoreBreakdown(state));
         }
 
         // Find winner (highest score)
@@ -228,6 +264,7 @@ public class EnvironmentAgent extends Agent {
         // Notify all players
         broadcastMessage(CTOntology.GAME_OVER, CTOntology.CONV_GAME,
                          "Game over!");
+        SimulationUI.log("Fin du jeu");
         doDelete();
     }
 
@@ -249,6 +286,9 @@ public class EnvironmentAgent extends Agent {
             System.out.println("🏆 Winner: "
                              + playerStates.get(winner).getPlayerName()
                              + " with score: " + highestScore);
+            SimulationUI.log("Gagnant: "
+                           + playerStates.get(winner).getPlayerName()
+                           + " avec " + highestScore + " points");
         }
     }
 
@@ -262,6 +302,8 @@ public class EnvironmentAgent extends Agent {
         msg.setConversationId(convId);
         msg.setContent(content + ";" + userContent);
         send(msg);
+        SimulationUI.logMessage(getLocalName(), receiver.getLocalName(),
+                                convId, msg.getContent());
     }
 
     private void broadcastMessage(String content, String convId,

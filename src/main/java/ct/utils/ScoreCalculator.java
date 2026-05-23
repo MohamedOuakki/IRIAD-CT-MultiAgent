@@ -19,21 +19,13 @@ public class ScoreCalculator {
 
     // Calculates the final score of a player at the end of the game
     public int calculateFinalScore(PlayerState player) {
-        int score = 0;
+        int tokenBonus = calculateTokenBonus(player);
 
-        // Bonus for reaching the goal
         if (player.hasReachedGoal()) {
-            score += BONUS_REACHED_GOAL;
-        } else {
-            // Penalty for each missing cell in the remaining path
-            int remainingCells = getRemainingCells(player);
-            score -= remainingCells * PENALTY_PER_CELL;
+            return BONUS_REACHED_GOAL + tokenBonus;
         }
 
-        // Bonus for each remaining token
-        score += player.getTokens().size() * BONUS_PER_TOKEN;
-
-        return score;
+        return tokenBonus - calculateMissingCellsPenalty(player);
     }
 
     // Returns the number of cells left between player and goal
@@ -45,6 +37,42 @@ public class ScoreCalculator {
 
         // Subtract 1 to exclude the current position
         return remainingPath.isEmpty() ? 0 : remainingPath.size() - 1;
+    }
+
+    public int calculateTokenBonus(PlayerState player) {
+        return player.getTokens().size() * BONUS_PER_TOKEN;
+    }
+
+    public int calculateMissingCellsPenalty(PlayerState player) {
+        return getRemainingCells(player) * PENALTY_PER_CELL;
+    }
+
+    public String buildScoreBreakdown(PlayerState player) {
+        StringBuilder sb = new StringBuilder();
+        int tokenBonus = calculateTokenBonus(player);
+
+        sb.append(player.getPlayerName()).append(" : ");
+        if (player.hasReachedGoal()) {
+            sb.append(BONUS_REACHED_GOAL).append(" bonus but");
+        } else {
+            int remainingCells = getRemainingCells(player);
+            sb.append("-").append(remainingCells * PENALTY_PER_CELL)
+              .append(" penalite (")
+              .append(remainingCells)
+              .append(" cases restantes x ")
+              .append(PENALTY_PER_CELL)
+              .append(")");
+        }
+
+        sb.append(" + ").append(tokenBonus)
+          .append(" jetons (")
+          .append(player.getTokens().size())
+          .append(" x ")
+          .append(BONUS_PER_TOKEN)
+          .append(") = ")
+          .append(calculateFinalScore(player));
+
+        return sb.toString();
     }
 
     // Applies the final score to the player
@@ -60,11 +88,12 @@ public class ScoreCalculator {
         System.out.println("=== Score Breakdown for " + player.getPlayerName() + " ===");
 
         if (player.hasReachedGoal()) {
-            System.out.println("  + " + BONUS_REACHED_GOAL + " (reached goal)");
+            System.out.println("  + " + BONUS_REACHED_GOAL
+                             + " (agent arrived at goal)");
         } else {
             int remainingCells = getRemainingCells(player);
             System.out.println("  - " + (remainingCells * PENALTY_PER_CELL)
-                             + " (" + remainingCells + " cells missing x "
+                             + " (" + remainingCells + " remaining cells x "
                              + PENALTY_PER_CELL + ")");
         }
 

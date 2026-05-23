@@ -4,6 +4,7 @@ import main.java.ct.models.Cell;
 import main.java.ct.models.PlayerState;
 import main.java.ct.models.Token;
 import main.java.ct.ontology.CTOntology;
+import main.java.ct.gui.SimulationUI;
 
 import jade.core.AID;
 import jade.core.Agent;
@@ -37,6 +38,9 @@ public class MoveBehaviour extends OneShotBehaviour {
             System.out.println(playerState.getPlayerName()
                              + ": Cannot move to " + targetCell
                              + ". Missing token: " + requiredColor);
+            SimulationUI.log(playerState.getPlayerName()
+                           + " est bloque: jeton " + requiredColor
+                           + " manquant");
             handleCannotMove();
             return;
         }
@@ -51,6 +55,12 @@ public class MoveBehaviour extends OneShotBehaviour {
         playerState.setCurrentPosition(targetCell);
         System.out.println(playerState.getPlayerName()
                          + ": Moved to " + targetCell);
+        SimulationUI.updatePlayer(playerState);
+        SimulationUI.log(playerState.getPlayerName()
+                       + " se deplace vers (" + targetCell.getRow()
+                       + "," + targetCell.getCol() + ") "
+                       + targetCell.getColor());
+        SimulationUI.pause(850);
 
         // Reset blocked turns since player successfully moved
         playerState.resetBlockedTurns();
@@ -76,6 +86,10 @@ public class MoveBehaviour extends OneShotBehaviour {
                      + CTOntology.KEY_POSITION + "="
                      + playerState.getCurrentPosition());
         myAgent.send(msg);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                environmentAgent.getLocalName(),
+                                CTOntology.CONV_GAME, msg.getContent());
+        SimulationUI.pause(350);
     }
 
     // ─── Notify Environment: Goal Reached ────────────────────────
@@ -90,6 +104,10 @@ public class MoveBehaviour extends OneShotBehaviour {
                      + playerState.getCurrentPosition()
                      + ";goalReached=true");
         myAgent.send(msg);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                environmentAgent.getLocalName(),
+                                CTOntology.CONV_GAME, msg.getContent());
+        SimulationUI.pause(350);
     }
 
     // ─── Handle Cannot Move ──────────────────────────────────────
@@ -108,5 +126,10 @@ public class MoveBehaviour extends OneShotBehaviour {
                      + CTOntology.KEY_PLAYER_NAME + "="
                      + playerState.getPlayerName());
         myAgent.send(msg);
+        SimulationUI.updatePlayer(playerState);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                environmentAgent.getLocalName(),
+                                CTOntology.CONV_GAME, msg.getContent());
+        SimulationUI.pause(350);
     }
 }

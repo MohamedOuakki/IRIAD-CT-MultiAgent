@@ -1,8 +1,10 @@
 package main.java.ct.behaviours;
 
+import main.java.ct.agents.PlayerAgent;
 import main.java.ct.models.PlayerState;
 import main.java.ct.models.Token;
 import main.java.ct.ontology.CTOntology;
+import main.java.ct.gui.SimulationUI;
 
 import jade.core.AID;
 import jade.core.Agent;
@@ -12,12 +14,17 @@ import jade.lang.acl.MessageTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class TransferBehaviour extends OneShotBehaviour {
 
     private ACLMessage incomingMessage;
     private PlayerState playerState;
     private AID selectedPartner;
+    private Random random;
+
+    private static final double CHEATER_HONOR_PROBABILITY = 0.35;
+    private static final double RANDOM_HONOR_PROBABILITY = 0.55;
 
     // ─── Constructor ─────────────────────────────────────────────
 
@@ -27,6 +34,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         this.incomingMessage = incomingMessage;
         this.playerState     = playerState;
         this.selectedPartner = selectedPartner;
+        this.random          = new Random();
     }
 
     // ─── Action ──────────────────────────────────────────────────
@@ -57,15 +65,30 @@ public class TransferBehaviour extends OneShotBehaviour {
         System.out.println(playerState.getPlayerName()
                          + ": Initiating transfer to "
                          + receiver.getLocalName());
+        SimulationUI.log(playerState.getPlayerName()
+                       + " lance un transfert vers "
+                       + receiver.getLocalName());
 
-        // Decide which tokens to actually send
-        List<Token> tokensToSend = decideTokensToSend();
+        List<Token> tokensToSend = getTokensToSendFromAgreement();
+        List<Token> tokensExpectedBack = getTokensExpectedBack();
+
+        if (!shouldHonorAgreement("initial transfer")) {
+            System.out.println(playerState.getPlayerName()
+                             + ": Transfer not honored before sending tokens.");
+            SimulationUI.log(playerState.getPlayerName()
+                           + " (" + playerState.getPersonality()
+                           + ") trahit l'accord avant transfert");
+            sendDenyTransfer(receiver);
+            ((PlayerAgent) myAgent).finishTurnAfterNegotiation();
+            return;
+        }
 
         if (tokensToSend.isEmpty()) {
             // Agent decides to cheat — sends nothing
             System.out.println(playerState.getPlayerName()
                              + ": Decided NOT to honor the agreement!");
             sendDenyTransfer(receiver);
+            ((PlayerAgent) myAgent).finishTurnAfterNegotiation();
             return;
         }
 
@@ -73,6 +96,11 @@ public class TransferBehaviour extends OneShotBehaviour {
         for (Token token : tokensToSend) {
             playerState.removeToken(token.getColor());
         }
+        SimulationUI.updatePlayer(playerState);
+        SimulationUI.log(playerState.getPlayerName()
+                       + " respecte le transfert. Jetons envoyes: "
+                       + tokensToSend + " | Restants: "
+                       + playerState.getTokens());
 
         System.out.println(playerState.getPlayerName()
                          + ": Sending tokens -> " + tokensToSend
@@ -85,8 +113,15 @@ public class TransferBehaviour extends OneShotBehaviour {
         msg.setConversationId(CTOntology.CONV_TRANSFER);
         msg.setContent(CTOntology.TRANSFER_TOKENS + ";"
                      + CTOntology.KEY_TOKENS_GIVE + "="
-                     + serializeTokens(tokensToSend));
+                     + serializeTokens(tokensToSend) + ";"
+                     + CTOntology.KEY_TOKENS_WANT + "="
+                     + serializeTokens(tokensExpectedBack));
         myAgent.send(msg);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                receiver.getLocalName(),
+                                CTOntology.CONV_TRANSFER,
+                                msg.getContent());
+        SimulationUI.pause(900);
 
         // Wait for confirmation from selected partner
         waitForConfirmation(receiver);
@@ -99,26 +134,38 @@ public class TransferBehaviour extends OneShotBehaviour {
         AID sender           = msg.getSender();
         String tokensStr     = CTOntology.getValue(content,
                                  CTOntology.KEY_TOKENS_GIVE);
+        String expectedStr   = CTOntology.getValue(content,
+                                 CTOntology.KEY_TOKENS_WANT);
         List<Token> received = deserializeTokens(tokensStr);
+        List<Token> expectedBack = deserializeTokens(expectedStr);
 
         System.out.println(playerState.getPlayerName()
                          + ": Received tokens from "
                          + sender.getLocalName()
                          + " -> " + received);
+        SimulationUI.log(playerState.getPlayerName()
+                       + " recoit des jetons de "
+                       + sender.getLocalName() + " -> " + received);
 
         // Decide whether to honor the agreement
-        boolean willHonor = decideToHonor(received);
+        boolean willHonor = shouldHonorAgreement("return transfer");
 
         if (willHonor) {
             // Add received tokens to inventory
             for (Token token : received) {
                 playerState.addToken(token);
             }
+            SimulationUI.updatePlayer(playerState);
             System.out.println(playerState.getPlayerName()
                              + ": Honored the agreement. Tokens added.");
+            SimulationUI.log(playerState.getPlayerName()
+                           + " (" + playerState.getPersonality()
+                           + ") respecte l'accord. Jetons recus: "
+                           + received + " | Inventaire: "
+                           + playerState.getTokens());
 
             // Send back agreed tokens
-            sendConfirmTransfer(sender);
+            sendConfirmTransfer(sender, expectedBack);
         } else {
             // Agent cheats
             System.out.println(playerState.getPlayerName()
@@ -127,19 +174,32 @@ public class TransferBehaviour extends OneShotBehaviour {
             for (Token token : received) {
                 playerState.addToken(token);
             }
+            SimulationUI.updatePlayer(playerState);
+            SimulationUI.log(playerState.getPlayerName()
+                           + " (" + playerState.getPersonality()
+                           + ") trahit l'accord et garde: "
+                           + received + " | Inventaire: "
+                           + playerState.getTokens());
             sendDenyTransfer(sender);
         }
     }
 
     // ─── Send Confirm Transfer ───────────────────────────────────
 
-    private void sendConfirmTransfer(AID receiver) {
-        List<Token> tokensToSendBack = decideTokensToSend();
+    private void sendConfirmTransfer(AID receiver, List<Token> expectedBack) {
+        List<Token> tokensToSendBack = expectedBack.isEmpty()
+            ? decideTokensToSend()
+            : expectedBack;
 
         // Remove from inventory
         for (Token token : tokensToSendBack) {
             playerState.removeToken(token.getColor());
         }
+        SimulationUI.updatePlayer(playerState);
+        SimulationUI.log(playerState.getPlayerName()
+                       + " renvoie les jetons convenus: "
+                       + tokensToSendBack + " | Restants: "
+                       + playerState.getTokens());
 
         ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
         msg.addReceiver(receiver);
@@ -149,6 +209,11 @@ public class TransferBehaviour extends OneShotBehaviour {
                      + CTOntology.KEY_TOKENS_GIVE + "="
                      + serializeTokens(tokensToSendBack));
         myAgent.send(msg);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                receiver.getLocalName(),
+                                CTOntology.CONV_TRANSFER,
+                                msg.getContent());
+        SimulationUI.pause(900);
 
         System.out.println(playerState.getPlayerName()
                          + ": Sent confirmation with tokens -> "
@@ -165,6 +230,11 @@ public class TransferBehaviour extends OneShotBehaviour {
         msg.setConversationId(CTOntology.CONV_TRANSFER);
         msg.setContent(CTOntology.DENY_TRANSFER);
         myAgent.send(msg);
+        SimulationUI.logMessage(playerState.getPlayerName(),
+                                receiver.getLocalName(),
+                                CTOntology.CONV_TRANSFER,
+                                msg.getContent());
+        SimulationUI.pause(700);
 
         System.out.println(playerState.getPlayerName()
                          + ": Sent transfer denial to "
@@ -182,6 +252,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         for (Token token : received) {
             playerState.addToken(token);
         }
+        SimulationUI.updatePlayer(playerState);
 
         System.out.println(playerState.getPlayerName()
                          + ": Transfer confirmed by "
@@ -189,6 +260,9 @@ public class TransferBehaviour extends OneShotBehaviour {
                          + "! Received -> " + received
                          + " | Updated tokens: "
                          + playerState.getTokens());
+        if (selectedPartner != null) {
+            ((PlayerAgent) myAgent).finishTurnAfterNegotiation();
+        }
     }
 
     // ─── Handle Transfer Denied ──────────────────────────────────
@@ -198,9 +272,15 @@ public class TransferBehaviour extends OneShotBehaviour {
                          + ": Transfer DENIED by "
                          + msg.getSender().getLocalName()
                          + ". Partner did not honor the agreement!");
+        SimulationUI.log(playerState.getPlayerName()
+                       + " voit le transfert refuse par "
+                       + msg.getSender().getLocalName());
         System.out.println(playerState.getPlayerName()
                          + ": Proceeding with current tokens: "
                          + playerState.getTokens());
+        if (selectedPartner != null) {
+            ((PlayerAgent) myAgent).finishTurnAfterNegotiation();
+        }
     }
 
     // ─── Wait For Confirmation ───────────────────────────────────
@@ -225,10 +305,28 @@ public class TransferBehaviour extends OneShotBehaviour {
                              + ": Transfer confirmation from "
                              + partner.getLocalName()
                              + " timed out.");
+            ((PlayerAgent) myAgent).finishTurnAfterNegotiation();
         }
     }
 
     // ─── Decision Helpers ────────────────────────────────────────
+
+    private List<Token> getTokensToSendFromAgreement() {
+        String tokensStr = CTOntology.getValue(
+            incomingMessage.getContent(),
+            CTOntology.KEY_TOKENS_WANT
+        );
+        List<Token> tokens = deserializeTokens(tokensStr);
+        return tokens.isEmpty() ? decideTokensToSend() : tokens;
+    }
+
+    private List<Token> getTokensExpectedBack() {
+        String tokensStr = CTOntology.getValue(
+            incomingMessage.getContent(),
+            CTOntology.KEY_TOKENS_GIVE
+        );
+        return deserializeTokens(tokensStr);
+    }
 
     private List<Token> decideTokensToSend() {
         // Honest strategy: always send tokens as agreed
@@ -240,10 +338,31 @@ public class TransferBehaviour extends OneShotBehaviour {
         return toSend;
     }
 
-    private boolean decideToHonor(List<Token> received) {
-        // Honest strategy: always honor the agreement
-        // Can be modified to implement cheating strategy
-        return true;
+    private boolean shouldHonorAgreement(String phase) {
+        switch (playerState.getPersonality()) {
+            case CHEATER:
+                boolean cheaterHonors = random.nextDouble() < CHEATER_HONOR_PROBABILITY;
+                SimulationUI.log(playerState.getPlayerName()
+                               + " CHEATER honor check during " + phase
+                               + ": " + cheaterHonors);
+                return cheaterHonors;
+
+            case RANDOM:
+                boolean randomHonors = random.nextDouble() < RANDOM_HONOR_PROBABILITY;
+                SimulationUI.log(playerState.getPlayerName()
+                               + " RANDOM honor check during " + phase
+                               + ": " + randomHonors);
+                return randomHonors;
+
+            case COOPERATIVE:
+            case SELFISH:
+            case OPPORTUNIST:
+            default:
+                SimulationUI.log(playerState.getPlayerName()
+                               + " (" + playerState.getPersonality()
+                               + ") respecte toujours le transfert");
+                return true;
+        }
     }
 
     // ─── Serialization Helpers ───────────────────────────────────

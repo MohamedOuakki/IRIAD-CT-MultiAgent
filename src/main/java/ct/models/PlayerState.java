@@ -2,6 +2,7 @@ package main.java.ct.models;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class PlayerState {
 
@@ -9,14 +10,21 @@ public class PlayerState {
     private Cell currentPosition;
     private Cell goalPosition;
     private List<Token> tokens;
+    private AgentPersonality personality;
     private int score;
     private int blockedTurns;
 
     public PlayerState(String playerName, Cell currentPosition, Cell goalPosition, List<Token> tokens) {
+        this(playerName, currentPosition, goalPosition, tokens, randomPersonality());
+    }
+
+    public PlayerState(String playerName, Cell currentPosition, Cell goalPosition,
+                       List<Token> tokens, AgentPersonality personality) {
         this.playerName = playerName;
         this.currentPosition = currentPosition;
         this.goalPosition = goalPosition;
         this.tokens = new ArrayList<>(tokens);
+        this.personality = personality;
         this.score = 0;
         this.blockedTurns = 0;
     }
@@ -41,6 +49,14 @@ public class PlayerState {
 
     public List<Token> getTokens() {
         return tokens;
+    }
+
+    public AgentPersonality getPersonality() {
+        return personality;
+    }
+
+    public void setPersonality(AgentPersonality personality) {
+        this.personality = personality;
     }
 
     public int getScore() {
@@ -98,9 +114,15 @@ public class PlayerState {
         return blockedTurns >= 3;
     }
 
+    private static AgentPersonality randomPersonality() {
+        AgentPersonality[] personalities = AgentPersonality.values();
+        return personalities[new Random().nextInt(personalities.length)];
+    }
+
     @Override
     public String toString() {
         return "Player: " + playerName +
+               " | Personality: " + personality +
                " | Position: " + currentPosition +
                " | Goal: " + goalPosition +
                " | Tokens: " + tokens +

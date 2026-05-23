@@ -73,7 +73,7 @@ public class GameConfig {
         return "GameConfig {" +
                "\n  Players : " + numberOfPlayers +
                "\n  Grid    : " + rows + " x " + cols +
-               "\n  Tokens  : " + tokensPerPlayer + " per player" +
+               "\n  Tokens  : strategic distribution + controlled random" +
                "\n}";
     }
 }
