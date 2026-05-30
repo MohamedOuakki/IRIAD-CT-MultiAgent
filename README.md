@@ -22,12 +22,16 @@ Le projet contient maintenant :
 
 Au lancement, l'utilisateur choisit le nombre de joueurs entre 2 et 10.
 
-La taille de la grille reste variable :
+La taille de la grille respecte l'enonce pour 2 agents puis reste variable :
 
 ```text
-rows = 3 + nombreDeJoueurs
-cols = 3 + nombreDeJoueurs * 2
+pour 2 agents : rows = 7, cols = 5
+pour plus de 2 agents :
+rows = 7 + (nombreDeJoueurs - 2)
+cols = 5 + ((nombreDeJoueurs - 2) * 2)
 ```
+
+Ainsi, la configuration minimale donne bien une grille 7 x 5, et la grille s'agrandit progressivement quand le nombre d'agents augmente.
 
 Chaque joueur recoit :
 
@@ -362,7 +366,7 @@ Modifier ici pour simuler des agents honnetes, egoistes, tricheurs ou probabilis
 `src/main/java/ct/models/GameConfig.java`
 
 - definit le nombre de joueurs ;
-- calcule la taille de la grille ;
+- calcule la taille de la grille : 7 x 5 pour 2 agents, puis agrandissement progressif ;
 - garde quelques parametres generaux du jeu.
 
 Modifier ici pour changer la taille de la grille ou les bornes du nombre de joueurs.

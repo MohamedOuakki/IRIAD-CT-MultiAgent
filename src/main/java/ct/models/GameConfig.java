@@ -3,9 +3,10 @@ package main.java.ct.models;
 public class GameConfig {
 
     // ─── Constants ───────────────────────────────────────────────
-    private static final int BASE_COLS         = 3;
-    private static final int BASE_ROWS         = 3;
-    private static final int COLS_PER_PLAYER   = 2;
+    private static final int BASE_COLS         = 5;
+    private static final int BASE_ROWS         = 7;
+    private static final int ROWS_PER_EXTRA_PLAYER = 1;
+    private static final int COLS_PER_EXTRA_PLAYER = 2;
     private static final int TOKENS_PER_PLAYER = 5;
     private static final int MIN_PLAYERS       = 2;
     private static final int MAX_PLAYERS       = 10;
@@ -30,8 +31,9 @@ public class GameConfig {
         }
 
         this.numberOfPlayers = numberOfPlayers;
-        this.rows            = BASE_ROWS + numberOfPlayers;
-        this.cols            = BASE_COLS + (numberOfPlayers * COLS_PER_PLAYER);
+        int extraPlayers = numberOfPlayers - MIN_PLAYERS;
+        this.rows        = BASE_ROWS + (extraPlayers * ROWS_PER_EXTRA_PLAYER);
+        this.cols        = BASE_COLS + (extraPlayers * COLS_PER_EXTRA_PLAYER);
         this.tokensPerPlayer = TOKENS_PER_PLAYER;
     }
 
