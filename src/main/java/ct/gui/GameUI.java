@@ -6,6 +6,7 @@ import main.java.ct.models.PlayerState;
 import main.java.ct.models.Token;
 
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -52,6 +53,7 @@ public class GameUI extends JFrame {
     private final JTextArea statusArea;
     private final JTextArea logArea;
     private final JTextArea movementArea;
+    private final JButton pauseButton;
     private final JComboBox<String> eventTypeFilter;
     private final JComboBox<String> playerFilter;
     private final List<EventRecord> eventHistory;
@@ -74,6 +76,7 @@ public class GameUI extends JFrame {
         statusArea = new JTextArea();
         logArea = new JTextArea();
         movementArea = new JTextArea();
+        pauseButton = new JButton("Pause");
         eventTypeFilter = new JComboBox<>(new String[]{
             "Tous", "Mouvements", "Negociations", "Transferts", "Tours", "Scores", "Autres"
         });
@@ -86,20 +89,27 @@ public class GameUI extends JFrame {
 
         JPanel leftPanel = new JPanel(new BorderLayout(8, 8));
         leftPanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        leftPanel.setMinimumSize(new Dimension(420, 360));
+        leftPanel.add(buildControlPanel(), BorderLayout.NORTH);
         leftPanel.add(gridPanel, BorderLayout.CENTER);
         leftPanel.add(movementArea, BorderLayout.SOUTH);
 
         JPanel rightPanel = new JPanel(new BorderLayout(8, 8));
         rightPanel.setBorder(BorderFactory.createEmptyBorder(12, 0, 12, 12));
+        rightPanel.setMinimumSize(new Dimension(300, 360));
         JScrollPane statusScroll = new JScrollPane(statusArea);
         statusScroll.setBorder(BorderFactory.createTitledBorder("Etat des joueurs"));
-        statusScroll.setPreferredSize(new Dimension(330, 235));
-        rightPanel.add(statusScroll, BorderLayout.NORTH);
-        rightPanel.add(buildEventPanel(), BorderLayout.CENTER);
+        statusScroll.setMinimumSize(new Dimension(280, 120));
+
+        JPanel eventPanel = buildEventPanel();
+        eventPanel.setMinimumSize(new Dimension(280, 180));
+
+        JSplitPane rightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, statusScroll, eventPanel);
+        configureSplitPane(rightSplitPane, 0.34, 10);
+        rightPanel.add(rightSplitPane, BorderLayout.CENTER);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
-        splitPane.setResizeWeight(0.68);
-        splitPane.setDividerSize(6);
+        configureSplitPane(splitPane, 0.68, 12);
         add(splitPane);
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -107,6 +117,7 @@ public class GameUI extends JFrame {
         setLocationRelativeTo(null);
 
         setPlayers(initialPlayers);
+        configurePauseButton();
         configureFilters();
     }
 
@@ -254,6 +265,32 @@ public class GameUI extends JFrame {
         return panel;
     }
 
+    private JPanel buildControlPanel() {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        panel.add(pauseButton);
+        return panel;
+    }
+
+    private void configurePauseButton() {
+        pauseButton.setToolTipText("Suspendre ou reprendre la simulation");
+        pauseButton.addActionListener(event -> {
+            boolean paused = SimulationUI.togglePaused();
+            pauseButton.setText(paused ? "Reprendre" : "Pause");
+            addEvent("Autres", null, paused
+                ? "Simulation mise en pause"
+                : "Simulation reprise");
+        });
+    }
+
+    private void configureSplitPane(JSplitPane splitPane, double resizeWeight,
+                                    int dividerSize) {
+        splitPane.setResizeWeight(resizeWeight);
+        splitPane.setDividerSize(dividerSize);
+        splitPane.setOneTouchExpandable(true);
+        splitPane.setContinuousLayout(true);
+        splitPane.setBorder(BorderFactory.createEmptyBorder());
+    }
+
     private void configureFilters() {
         eventTypeFilter.setMaximumRowCount(7);
         playerFilter.setMaximumRowCount(10);
@@ -349,6 +386,8 @@ public class GameUI extends JFrame {
             sb.append("  Score    : ").append(state.getScore()).append("\n");
             sb.append("  Bloque   : ").append(state.getBlockedTurns()).append(" tour(s)\n\n");
         }
+        sb.append("STATISTIQUES\n");
+        sb.append("  ").append(SimulationUI.getStatsSummary()).append("\n");
         return sb.toString();
     }
 

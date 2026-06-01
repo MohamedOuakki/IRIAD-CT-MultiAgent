@@ -26,8 +26,7 @@ public class PlayerAgent extends Agent {
     private AID environmentAgent;
     private List<AID> partnerAgents;
 
-    // ─── Setup ───────────────────────────────────────────────────
-
+    // Setup
     @Override
     protected void setup() {
         System.out.println("PlayerAgent " + getLocalName() + " started.");
@@ -93,8 +92,7 @@ public class PlayerAgent extends Agent {
         addBehaviour(new ListenBehaviour());
     }
 
-    // ─── Listen Behaviour ────────────────────────────────────────
-
+    // Listen Behaviour
     private class ListenBehaviour extends CyclicBehaviour {
 
         @Override
@@ -113,8 +111,7 @@ public class PlayerAgent extends Agent {
         }
     }
 
-    // ─── Message Handler ─────────────────────────────────────────
-
+    // Message Handler
     private void handleMessage(ACLMessage msg) {
         String content = msg.getContent();
         String convId  = msg.getConversationId();
@@ -142,8 +139,7 @@ public class PlayerAgent extends Agent {
         }
     }
 
-    // ─── Handle Game Messages ────────────────────────────────────
-
+    // Handle Game Messages
     private void handleGameMessage(String content) {
 
         if (content.startsWith(CTOntology.GAME_START)) {
@@ -167,8 +163,7 @@ public class PlayerAgent extends Agent {
         }
     }
 
-    // ─── Play Turn ───────────────────────────────────────────────
-
+    // Play Turn
     private void playTurn() {
         List<Cell> path = pathFinder.findShortestPath(
             state.getCurrentPosition(),
@@ -206,8 +201,7 @@ public class PlayerAgent extends Agent {
         }
     }
 
-    // ─── Notify Environment Turn Done ────────────────────────────
-
+    // Notify Environment Turn Done
     public void notifyTurnDone() {
         ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
         msg.addReceiver(environmentAgent);
@@ -221,8 +215,7 @@ public class PlayerAgent extends Agent {
                          + ": Turn done. Notified environment.");
     }
 
-    // ─── Getters ─────────────────────────────────────────────────
-
+    // Getters
     public void finishTurnAfterNegotiation() {
         List<Cell> path = pathFinder.findShortestPath(
             state.getCurrentPosition(),
@@ -291,8 +284,7 @@ public class PlayerAgent extends Agent {
         return config;
     }
 
-    // ─── Takedown ────────────────────────────────────────────────
-
+    // Takedown
     @Override
     protected void takeDown() {
         System.out.println("PlayerAgent " + getLocalName()

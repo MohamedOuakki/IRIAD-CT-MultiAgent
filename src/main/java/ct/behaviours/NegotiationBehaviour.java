@@ -27,8 +27,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
 
     private static final double RANDOM_ACCEPT_PROBABILITY = 0.50;
 
-    // ─── Constructor ─────────────────────────────────────────────
-
+    // Constructor
     public NegotiationBehaviour(Agent agent, ACLMessage incomingMessage,
                                 PlayerState playerState, PathFinder pathFinder,
                                 List<AID> partnerAgents) {
@@ -41,8 +40,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         this.random          = new Random();
     }
 
-    // ─── Action ──────────────────────────────────────────────────
-
+    // Action
     @Override
     public void action() {
         // If no incoming message, this agent is the proposer
@@ -61,8 +59,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Propose ─────────────────────────────────────────────────
-
+    // Propose
     private void propose() {
         // Find shortest path
         List<Cell> path = pathFinder.findShortestPath(
@@ -115,8 +112,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         ((PlayerAgent) myAgent).finishTurnAfterNegotiation();
     }
 
-    // ─── Send Proposal To Specific Partner ───────────────────────
-
+    // Send Proposal To Specific Partner
     private boolean sendProposalTo(AID partner, List<Cell> path,
                                    List<Token> missingTokens) {
         // Build offer
@@ -158,7 +154,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
             MessageTemplate.MatchSender(partner)
         );
 
-        ACLMessage response = myAgent.blockingReceive(mt, 5000);
+        ACLMessage response = SimulationUI.blockingReceive(myAgent, mt, 5000);
 
         if (response != null) {
             String content = response.getContent();
@@ -178,8 +174,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Handle Incoming Proposal ────────────────────────────────
-
+    // Handle Incoming Proposal
     private void handleProposal(ACLMessage msg) {
         String content = msg.getContent();
         AID sender     = msg.getSender();
@@ -213,8 +208,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Accept Proposal ─────────────────────────────────────────
-
+    // Accept Proposal
     private void acceptProposal(AID sender, List<Token> theyGive,
                                 List<Token> theyWant,
                                 String decisionReason) {
@@ -243,8 +237,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         SimulationUI.pause(700);
     }
 
-    // ─── Reject Proposal ─────────────────────────────────────────
-
+    // Reject Proposal
     private void rejectProposal(AID sender, String decisionReason) {
         System.out.println(playerState.getPlayerName()
                          + ": Rejecting proposal from "
@@ -267,8 +260,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         SimulationUI.pause(700);
     }
 
-    // ─── Handle Acceptance ───────────────────────────────────────
-
+    // Handle Acceptance
     private void handleAcceptance(ACLMessage msg) {
         // Track who accepted
         selectedPartner = msg.getSender();
@@ -287,8 +279,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         ));
     }
 
-    // ─── Handle Rejection ────────────────────────────────────────
-
+    // Handle Rejection
     private void handleRejection(ACLMessage msg) {
         System.out.println(playerState.getPlayerName()
                          + ": Proposal rejected by "
@@ -298,14 +289,12 @@ public class NegotiationBehaviour extends OneShotBehaviour {
                        + msg.getSender().getLocalName());
     }
 
-    // ─── Getter ──────────────────────────────────────────────────
-
+    // Getter
     public AID getSelectedPartner() {
         return selectedPartner;
     }
 
-    // ─── Evaluation Helpers ──────────────────────────────────────
-
+    // Evaluation Helpers
     private boolean canFulfillRequest(List<Token> requested) {
         for (Token token : requested) {
             if (!playerState.hasToken(token.getColor())) {
@@ -418,8 +407,7 @@ public class NegotiationBehaviour extends OneShotBehaviour {
         return surplus;
     }
 
-    // ─── Serialization Helpers ───────────────────────────────────
-
+    // Serialization Helpers
     private String serializeTokens(List<Token> tokens) {
         if (tokens.isEmpty()) return "none";
         StringBuilder sb = new StringBuilder();

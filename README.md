@@ -173,6 +173,8 @@ Elle affiche :
 - les communications entre agents avec une ligne/fleche temporaire ;
 - un historique complet des evenements : tours, mouvements, propositions, acceptations, rejets, transferts, blocages, scores ;
 - des listes deroulantes pour filtrer l'historique par type d'evenement et par joueur.
+- un bouton `Pause/Reprendre` pour interrompre temporairement la simulation pendant une demonstration ;
+- des statistiques simples en temps reel et en fin de partie : offres, acceptations, rejets, transferts respectes et trahisons/refus.
 
 Les filtres disponibles dans l'interface sont :
 
@@ -470,7 +472,9 @@ Modifier ici si tu ajoutes de nouveaux types de messages.
 - affiche les communications ;
 - affiche les etats des joueurs ;
 - conserve l'historique complet des evenements ;
-- permet de filtrer les logs par type d'evenement et par joueur avec des listes deroulantes.
+- permet de filtrer les logs par type d'evenement et par joueur avec des listes deroulantes ;
+- propose un bouton pause/reprendre pour faciliter les demonstrations ;
+- affiche les statistiques globales de negociation et de transfert.
 
 Modifier ici pour changer l'apparence de l'interface, les categories de logs, les filtres, ou la facon dont les mouvements et negociations sont affiches.
 

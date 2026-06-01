@@ -14,7 +14,7 @@ public class Grid {
     private Random random;
     private int targetDistance;
 
-    // ─── Constructor ─────────────────────────────────────────────
+    // Constructor
     public Grid(GameConfig config) {
         this.rows  = config.getRows();
         this.cols  = config.getCols();
@@ -27,7 +27,7 @@ public class Grid {
         initializePlayerPositions(config.getNumberOfPlayers());
     }
 
-    // ─── Initialize Grid ─────────────────────────────────────────
+    // Initialize Grid
     private void initializeGrid() {
         Token.Color[] colors = Token.Color.values();
 
@@ -113,7 +113,7 @@ public class Grid {
         return cell.getRow() + ":" + cell.getCol();
     }
 
-    // ─── Getters ─────────────────────────────────────────────────
+    // Getters
     public int getRows() {
         return rows;
     }
@@ -133,23 +133,23 @@ public class Grid {
         return cells;
     }
 
-    // ─── Validation ──────────────────────────────────────────────
+    // Validation
     public boolean isValidPosition(int row, int col) {
         return row >= 0 && row < rows
             && col >= 0 && col < cols;
     }
 
-    // ─── Get Start Cell for Player ───────────────────────────────
+    // Get Start Cell for Player
     public Cell getStartCell(int playerIndex) {
         return startCells[playerIndex];
     }
 
-    // ─── Get Goal Cell for Player ────────────────────────────────
+    // Get Goal Cell for Player
     public Cell getGoalCell(int playerIndex) {
         return goalCells[playerIndex];
     }
 
-    // ─── Print Grid ──────────────────────────────────────────────
+    // Print Grid
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

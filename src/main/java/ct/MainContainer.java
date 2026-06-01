@@ -27,22 +27,22 @@ public class MainContainer {
         System.out.println("║   Colored Trails Multi-Agent System  ║");
         System.out.println("╚══════════════════════════════════════╝");
 
-        // ─── Step 1: Read Number of Players ──────────────────────
+        // Step 1: Read Number of Players
         int numberOfPlayers = readNumberOfPlayers();
 
-        // ─── Step 2: Create Game Config ───────────────────────────
+        // Step 2: Create Game Config
         GameConfig config = new GameConfig(numberOfPlayers);
         System.out.println("\nGame configuration:");
         System.out.println(config);
 
-        // ─── Step 3: Create Grid (for display only) ───────────────
+        // Step 3: Create Grid (for display only)
         Grid grid = new Grid(config);
         System.out.println("Grid initialized:");
         System.out.println(grid);
         TokenDistributor distributor = new TokenDistributor(config, grid);
         List<PlayerState> playerStates = distributor.createInitialPlayerStates();
 
-        // ─── Step 4: Start JADE Runtime ───────────────────────────
+        // Step 4: Start JADE Runtime
         Runtime runtime  = Runtime.instance();
         Profile profile  = new ProfileImpl();
         profile.setParameter(Profile.MAIN_HOST, "localhost");
@@ -53,7 +53,7 @@ public class MainContainer {
         AgentContainer mainContainer =
             runtime.createMainContainer(profile);
 
-        // ─── Step 5: Launch Agents ────────────────────────────────
+        // Step 5: Launch Agents
         try {
             // Launch EnvironmentAgent first with config
             AgentController envAgent = mainContainer.createNewAgent(
@@ -108,8 +108,7 @@ public class MainContainer {
         System.out.println("\nAll agents launched. Game is running...");
     }
 
-    // ─── Read Number of Players ───────────────────────────────────
-
+    // Read Number of Players
     private static int readNumberOfPlayers() {
         int number = 0;
 
@@ -129,8 +128,7 @@ public class MainContainer {
         return number;
     }
 
-    // ─── Generate Random Tokens ───────────────────────────────────
-
+    // Generate Random Tokens
     private static int findAvailablePort(int startPort) {
         int port = startPort;
         while (port < startPort + 100) {

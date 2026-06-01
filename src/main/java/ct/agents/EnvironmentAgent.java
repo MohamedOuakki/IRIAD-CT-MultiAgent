@@ -27,8 +27,7 @@ public class EnvironmentAgent extends Agent {
     private int currentPlayerIndex;
     private boolean gameOver;
 
-    // ─── Setup ───────────────────────────────────────────────────
-
+    // Setup
     @Override
     protected void setup() {
         System.out.println("EnvironmentAgent " + getLocalName() + " started.");
@@ -87,8 +86,7 @@ public class EnvironmentAgent extends Agent {
         addBehaviour(new GameManagerBehaviour());
     }
 
-    // ─── Initialize Player States ────────────────────────────────
-
+    // Initialize Player States
     private void initializePlayerStates() {
         for (int i = 0; i < config.getNumberOfPlayers(); i++) {
             AID playerAID = players.get(i);
@@ -126,8 +124,7 @@ public class EnvironmentAgent extends Agent {
         }
     }
 
-    // ─── Generate Random Tokens ──────────────────────────────────
-
+    // Generate Random Tokens
     private List<Token> generateRandomTokens(int count) {
         List<Token> tokens   = new ArrayList<>();
         Token.Color[] colors = Token.Color.values();
@@ -139,8 +136,7 @@ public class EnvironmentAgent extends Agent {
         return tokens;
     }
 
-    // ─── Game Manager Behaviour ──────────────────────────────────
-
+    // Game Manager Behaviour
     private class GameManagerBehaviour extends CyclicBehaviour {
 
         @Override
@@ -168,7 +164,9 @@ public class EnvironmentAgent extends Agent {
                 MessageTemplate.MatchOntology(CTOntology.ONTOLOGY_NAME)
             );
 
-            ACLMessage reply = blockingReceive(mt, 10000);
+            ACLMessage reply = SimulationUI.blockingReceive(
+                EnvironmentAgent.this, mt, 10000
+            );
 
             if (reply != null) {
                 handleTurnDone(reply);
@@ -193,8 +191,7 @@ public class EnvironmentAgent extends Agent {
         }
     }
 
-    // ─── Handle Turn Done ────────────────────────────────────────
-
+    // Handle Turn Done
     private void handleTurnDone(ACLMessage message) {
         AID sender     = message.getSender();
         String content = message.getContent();
@@ -230,8 +227,7 @@ public class EnvironmentAgent extends Agent {
                          + ": completed turn successfully.");
     }
 
-    // ─── Check Blocked Condition ─────────────────────────────────
-
+    // Check Blocked Condition
     private void checkBlockedCondition(AID player, PlayerState state) {
         if (state.isBlocked()) {
             System.out.println(state.getPlayerName()
@@ -242,8 +238,7 @@ public class EnvironmentAgent extends Agent {
         }
     }
 
-    // ─── End Game ────────────────────────────────────────────────
-
+    // End Game
     private void endGame(AID triggeringPlayer) {
         gameOver = true;
 
@@ -260,6 +255,7 @@ public class EnvironmentAgent extends Agent {
 
         // Find winner (highest score)
         announceWinner();
+        SimulationUI.log(SimulationUI.getStatsSummary());
 
         // Notify all players
         broadcastMessage(CTOntology.GAME_OVER, CTOntology.CONV_GAME,
@@ -268,8 +264,7 @@ public class EnvironmentAgent extends Agent {
         doDelete();
     }
 
-    // ─── Announce Winner ─────────────────────────────────────────
-
+    // Announce Winner
     private void announceWinner() {
         AID winner         = null;
         int highestScore   = Integer.MIN_VALUE;
@@ -292,8 +287,7 @@ public class EnvironmentAgent extends Agent {
         }
     }
 
-    // ─── Messaging Helpers ───────────────────────────────────────
-
+    // Messaging Helpers
     private void sendMessage(AID receiver, String content,
                              String convId, String userContent) {
         ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
@@ -313,8 +307,7 @@ public class EnvironmentAgent extends Agent {
         }
     }
 
-    // ─── Takedown ────────────────────────────────────────────────
-
+    // Takedown
     @Override
     protected void takeDown() {
         System.out.println("EnvironmentAgent " + getLocalName()

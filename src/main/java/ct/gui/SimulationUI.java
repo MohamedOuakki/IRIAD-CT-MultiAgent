@@ -4,18 +4,27 @@ import main.java.ct.models.Grid;
 import main.java.ct.models.PlayerState;
 import main.java.ct.ontology.CTOntology;
 
+import jade.core.Agent;
+import jade.lang.acl.ACLMessage;
+import jade.lang.acl.MessageTemplate;
+
 import javax.swing.SwingUtilities;
 import java.util.Collection;
 
 public final class SimulationUI {
 
     private static GameUI ui;
+    private static final Object PAUSE_LOCK = new Object();
+    private static final GameStats STATS = new GameStats();
+    private static boolean paused;
 
     private SimulationUI() {
     }
 
     public static synchronized void show(Grid grid, Collection<PlayerState> players) {
         if (ui == null) {
+            STATS.reset();
+            paused = false;
             ui = GameUI.open(grid, players);
         } else {
             setPlayers(players);
@@ -49,6 +58,7 @@ public final class SimulationUI {
     public static void logMessage(String from, String to, String conversation, String content) {
         GameUI current = ui;
         String readableContent = formatMessageContent(from, to, conversation, content);
+        STATS.recordMessage(conversation, content);
         if (current != null) {
             SwingUtilities.invokeLater(() -> current.showCommunication(from, to, conversation, readableContent));
         }
@@ -57,9 +67,57 @@ public final class SimulationUI {
 
     public static void pause(int milliseconds) {
         try {
-            Thread.sleep(milliseconds);
+            waitIfPaused();
+            int remaining = milliseconds;
+            while (remaining > 0) {
+                Thread.sleep(Math.min(remaining, 100));
+                remaining -= 100;
+                waitIfPaused();
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    public static boolean togglePaused() {
+        synchronized (PAUSE_LOCK) {
+            paused = !paused;
+            if (!paused) {
+                PAUSE_LOCK.notifyAll();
+            }
+            return paused;
+        }
+    }
+
+    public static ACLMessage blockingReceive(Agent agent, MessageTemplate template,
+                                             int timeoutMillis) {
+        int waited = 0;
+        int step = 100;
+        try {
+            while (waited < timeoutMillis) {
+                waitIfPaused();
+                int waitTime = Math.min(step, timeoutMillis - waited);
+                ACLMessage message = agent.blockingReceive(template, waitTime);
+                if (message != null) {
+                    return message;
+                }
+                waited += waitTime;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return null;
+    }
+
+    public static String getStatsSummary() {
+        return STATS.summary();
+    }
+
+    private static void waitIfPaused() throws InterruptedException {
+        synchronized (PAUSE_LOCK) {
+            while (paused) {
+                PAUSE_LOCK.wait();
+            }
         }
     }
 
@@ -131,5 +189,55 @@ public final class SimulationUI {
             return "aucun jeton";
         }
         return "[" + rawTokens.replace(",", ", ") + "]";
+    }
+
+    private static class GameStats {
+        private int negotiationOffers;
+        private int acceptedOffers;
+        private int rejectedOffers;
+        private int transferRequests;
+        private int honoredTransfers;
+        private int betrayedTransfers;
+
+        private synchronized void reset() {
+            negotiationOffers = 0;
+            acceptedOffers = 0;
+            rejectedOffers = 0;
+            transferRequests = 0;
+            honoredTransfers = 0;
+            betrayedTransfers = 0;
+        }
+
+        private synchronized void recordMessage(String conversation, String content) {
+            if (content == null) {
+                return;
+            }
+            if (CTOntology.CONV_NEGOTIATION.equals(conversation)) {
+                if (content.startsWith(CTOntology.PROPOSE)) {
+                    negotiationOffers++;
+                } else if (content.startsWith(CTOntology.ACCEPT_PROPOSAL)) {
+                    acceptedOffers++;
+                } else if (content.startsWith(CTOntology.REJECT_PROPOSAL)) {
+                    rejectedOffers++;
+                }
+            } else if (CTOntology.CONV_TRANSFER.equals(conversation)) {
+                if (content.startsWith(CTOntology.TRANSFER_TOKENS)) {
+                    transferRequests++;
+                } else if (content.startsWith(CTOntology.CONFIRM_TRANSFER)) {
+                    honoredTransfers++;
+                } else if (content.startsWith(CTOntology.DENY_TRANSFER)) {
+                    betrayedTransfers++;
+                }
+            }
+        }
+
+        private synchronized String summary() {
+            return "STATISTIQUES | Offres: " + negotiationOffers
+                 + " | acceptees: " + acceptedOffers
+                 + " | rejetees: " + rejectedOffers
+                 + " | demandes de transfert: " + transferRequests
+                 + " | transferts respectes: " + honoredTransfers
+                 + " | trahisons/refus: " + betrayedTransfers;
+        }
     }
 }

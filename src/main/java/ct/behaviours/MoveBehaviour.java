@@ -17,8 +17,7 @@ public class MoveBehaviour extends OneShotBehaviour {
     private Cell targetCell;
     private AID environmentAgent;
 
-    // ─── Constructor ─────────────────────────────────────────────
-
+    // Constructor
     public MoveBehaviour(Agent agent, PlayerState playerState,
                          Cell targetCell, AID environmentAgent) {
         super(agent);
@@ -27,8 +26,7 @@ public class MoveBehaviour extends OneShotBehaviour {
         this.environmentAgent = environmentAgent;
     }
 
-    // ─── Action ──────────────────────────────────────────────────
-
+    // Action
     @Override
     public void action() {
         Token.Color requiredColor = targetCell.getColor();
@@ -75,8 +73,7 @@ public class MoveBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Notify Environment: Move Done ───────────────────────────
-
+    // Notify Environment: Move Done
     private void notifyMoveDone() {
         ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
         msg.addReceiver(environmentAgent);
@@ -92,8 +89,7 @@ public class MoveBehaviour extends OneShotBehaviour {
         SimulationUI.pause(350);
     }
 
-    // ─── Notify Environment: Goal Reached ────────────────────────
-
+    // Notify Environment: Goal Reached
     private void notifyGoalReached() {
         ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
         msg.addReceiver(environmentAgent);
@@ -110,8 +106,7 @@ public class MoveBehaviour extends OneShotBehaviour {
         SimulationUI.pause(350);
     }
 
-    // ─── Handle Cannot Move ──────────────────────────────────────
-
+    // Handle Cannot Move
     private void handleCannotMove() {
         playerState.incrementBlockedTurns();
         System.out.println(playerState.getPlayerName()

@@ -2,16 +2,15 @@ package main.java.ct.ontology;
 
 public class CTOntology {
 
-    // ─── Ontology Name ───────────────────────────────────────────
+    // Ontology Name
     public static final String ONTOLOGY_NAME = "ColoredTrails-Ontology";
 
-    // ─── Conversation IDs ────────────────────────────────────────
+    // Conversation IDs
     public static final String CONV_NEGOTIATION = "negotiation";
     public static final String CONV_TRANSFER    = "transfer";
     public static final String CONV_GAME        = "game";
 
-    // ─── Performatives (Message Types) ───────────────────────────
-
+    // Performatives (Message Types)
     // Negotiation phase
     public static final String PROPOSE         = "PROPOSE";
     public static final String ACCEPT_PROPOSAL = "ACCEPT_PROPOSAL";
@@ -31,7 +30,7 @@ public class CTOntology {
     public static final String BLOCKED          = "BLOCKED";
     public static final String UPDATE_STATE     = "UPDATE_STATE";
 
-    // ─── Message Content Keys ────────────────────────────────────
+    // Message Content Keys
     public static final String KEY_OFFER        = "offer";
     public static final String KEY_TOKENS_GIVE  = "tokensToGive";
     public static final String KEY_TOKENS_WANT  = "tokensToReceive";
@@ -39,10 +38,10 @@ public class CTOntology {
     public static final String KEY_POSITION     = "position";
     public static final String KEY_SCORE        = "score";
 
-    // ─── Message Format ──────────────────────────────────────────
+    // Message Format
     public static final String LANGUAGE         = "plain-text";
 
-    // ─── Helper: Build message content string ────────────────────
+    // Helper: Build message content string
     public static String buildContent(String key, String value) {
         return key + "=" + value;
     }

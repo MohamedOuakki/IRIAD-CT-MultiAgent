@@ -2,7 +2,7 @@ package main.java.ct.models;
 
 public class GameConfig {
 
-    // ─── Constants ───────────────────────────────────────────────
+    // Constants
     private static final int BASE_COLS         = 5;
     private static final int BASE_ROWS         = 7;
     private static final int ROWS_PER_EXTRA_PLAYER = 1;
@@ -11,13 +11,13 @@ public class GameConfig {
     private static final int MIN_PLAYERS       = 2;
     private static final int MAX_PLAYERS       = 10;
 
-    // ─── Fields ──────────────────────────────────────────────────
+    // Fields
     private int numberOfPlayers;
     private int rows;
     private int cols;
     private int tokensPerPlayer;
 
-    // ─── Constructor ─────────────────────────────────────────────
+    // Constructor
     public GameConfig(int numberOfPlayers) {
         if (numberOfPlayers < MIN_PLAYERS) {
             System.out.println("Minimum players is " + MIN_PLAYERS
@@ -37,7 +37,7 @@ public class GameConfig {
         this.tokensPerPlayer = TOKENS_PER_PLAYER;
     }
 
-    // ─── Getters ─────────────────────────────────────────────────
+    // Getters
     public int getNumberOfPlayers() {
         return numberOfPlayers;
     }
@@ -54,8 +54,7 @@ public class GameConfig {
         return tokensPerPlayer;
     }
 
-    // ─── Position Helpers ────────────────────────────────────────
-
+    // Position Helpers
     // Returns the start cell position for a given player index
     public int[] getStartPosition(int playerIndex) {
         int row = playerIndex % rows;

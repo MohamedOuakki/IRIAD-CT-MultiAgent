@@ -26,8 +26,7 @@ public class TransferBehaviour extends OneShotBehaviour {
     private static final double CHEATER_HONOR_PROBABILITY = 0.35;
     private static final double RANDOM_HONOR_PROBABILITY = 0.55;
 
-    // ─── Constructor ─────────────────────────────────────────────
-
+    // Constructor
     public TransferBehaviour(Agent agent, ACLMessage incomingMessage,
                              PlayerState playerState, AID selectedPartner) {
         super(agent);
@@ -37,8 +36,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         this.random          = new Random();
     }
 
-    // ─── Action ──────────────────────────────────────────────────
-
+    // Action
     @Override
     public void action() {
         String content = incomingMessage.getContent();
@@ -59,8 +57,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Initiate Transfer ───────────────────────────────────────
-
+    // Initiate Transfer
     private void initiateTransfer(AID receiver) {
         System.out.println(playerState.getPlayerName()
                          + ": Initiating transfer to "
@@ -127,8 +124,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         waitForConfirmation(receiver);
     }
 
-    // ─── Handle Incoming Transfer ────────────────────────────────
-
+    // Handle Incoming Transfer
     private void handleIncomingTransfer(ACLMessage msg) {
         String content       = msg.getContent();
         AID sender           = msg.getSender();
@@ -184,8 +180,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Send Confirm Transfer ───────────────────────────────────
-
+    // Send Confirm Transfer
     private void sendConfirmTransfer(AID receiver, List<Token> expectedBack) {
         List<Token> tokensToSendBack = expectedBack.isEmpty()
             ? decideTokensToSend()
@@ -221,8 +216,7 @@ public class TransferBehaviour extends OneShotBehaviour {
                          + " to " + receiver.getLocalName());
     }
 
-    // ─── Send Deny Transfer ──────────────────────────────────────
-
+    // Send Deny Transfer
     private void sendDenyTransfer(AID receiver) {
         ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
         msg.addReceiver(receiver);
@@ -241,8 +235,7 @@ public class TransferBehaviour extends OneShotBehaviour {
                          + receiver.getLocalName());
     }
 
-    // ─── Handle Transfer Confirmed ───────────────────────────────
-
+    // Handle Transfer Confirmed
     private void handleTransferConfirmed(ACLMessage msg) {
         String content       = msg.getContent();
         String tokensStr     = CTOntology.getValue(content,
@@ -265,8 +258,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Handle Transfer Denied ──────────────────────────────────
-
+    // Handle Transfer Denied
     private void handleTransferDenied(ACLMessage msg) {
         System.out.println(playerState.getPlayerName()
                          + ": Transfer DENIED by "
@@ -283,15 +275,14 @@ public class TransferBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Wait For Confirmation ───────────────────────────────────
-
+    // Wait For Confirmation
     private void waitForConfirmation(AID partner) {
         MessageTemplate mt = MessageTemplate.and(
             MessageTemplate.MatchConversationId(CTOntology.CONV_TRANSFER),
             MessageTemplate.MatchSender(partner)
         );
 
-        ACLMessage response = myAgent.blockingReceive(mt, 5000);
+        ACLMessage response = SimulationUI.blockingReceive(myAgent, mt, 5000);
 
         if (response != null) {
             String content = response.getContent();
@@ -309,8 +300,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Decision Helpers ────────────────────────────────────────
-
+    // Decision Helpers
     private List<Token> getTokensToSendFromAgreement() {
         String tokensStr = CTOntology.getValue(
             incomingMessage.getContent(),
@@ -365,8 +355,7 @@ public class TransferBehaviour extends OneShotBehaviour {
         }
     }
 
-    // ─── Serialization Helpers ───────────────────────────────────
-
+    // Serialization Helpers
     private String serializeTokens(List<Token> tokens) {
         if (tokens.isEmpty()) return "none";
         StringBuilder sb = new StringBuilder();
