@@ -6,8 +6,10 @@ import main.java.ct.models.PlayerState;
 import main.java.ct.models.Token;
 
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -24,6 +26,7 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -50,7 +53,7 @@ public class GameUI extends JFrame {
 
     private final Grid grid;
     private final GridPanel gridPanel;
-    private final JTextArea statusArea;
+    private final JPanel statusPanel;
     private final JTextArea logArea;
     private final JTextArea movementArea;
     private final JButton pauseButton;
@@ -73,7 +76,7 @@ public class GameUI extends JFrame {
         this.drawnPositions = new LinkedHashMap<>();
 
         gridPanel = new GridPanel();
-        statusArea = new JTextArea();
+        statusPanel = new JPanel();
         logArea = new JTextArea();
         movementArea = new JTextArea();
         pauseButton = new JButton("Pause");
@@ -83,7 +86,7 @@ public class GameUI extends JFrame {
         playerFilter = new JComboBox<>();
         eventHistory = new ArrayList<>();
 
-        configureTextArea(statusArea);
+        configureStatusPanel();
         configureTextArea(logArea);
         configureMovementArea();
 
@@ -97,7 +100,7 @@ public class GameUI extends JFrame {
         JPanel rightPanel = new JPanel(new BorderLayout(8, 8));
         rightPanel.setBorder(BorderFactory.createEmptyBorder(12, 0, 12, 12));
         rightPanel.setMinimumSize(new Dimension(300, 360));
-        JScrollPane statusScroll = new JScrollPane(statusArea);
+        JScrollPane statusScroll = new JScrollPane(statusPanel);
         statusScroll.setBorder(BorderFactory.createTitledBorder("Etat des joueurs"));
         statusScroll.setMinimumSize(new Dimension(280, 120));
 
@@ -187,7 +190,7 @@ public class GameUI extends JFrame {
     }
 
     private void refresh() {
-        statusArea.setText(buildStatusText());
+        rebuildStatusPanel();
         gridPanel.repaint();
     }
 
@@ -374,6 +377,64 @@ public class GameUI extends JFrame {
         return null;
     }
 
+    private void rebuildStatusPanel() {
+        statusPanel.removeAll();
+
+        for (PlayerState state : players.values()) {
+            statusPanel.add(buildPlayerStatusCard(state));
+        }
+
+        JPanel statsPanel = new JPanel(new BorderLayout());
+        statsPanel.setBackground(new Color(248, 250, 252));
+        statsPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(203, 213, 225)),
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+        JLabel statsLabel = new JLabel(SimulationUI.getStatsSummary());
+        statsLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        statsPanel.add(statsLabel, BorderLayout.CENTER);
+        statusPanel.add(statsPanel);
+
+        statusPanel.revalidate();
+        statusPanel.repaint();
+    }
+
+    private JPanel buildPlayerStatusCard(PlayerState state) {
+        JPanel card = new JPanel(new BorderLayout(8, 6));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(203, 213, 225)),
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+
+        JLabel title = new JLabel(state.getPlayerName() + " - " + state.getPersonality());
+        title.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        title.setForeground(playerColors.get(state.getPlayerName()));
+        card.add(title, BorderLayout.NORTH);
+
+        JPanel details = new JPanel(new GridLayout(0, 1, 0, 2));
+        details.setBackground(Color.WHITE);
+        details.add(new JLabel("Position : " + formatCell(state.getCurrentPosition())));
+        details.add(new JLabel("But : " + formatCell(state.getGoalPosition())));
+        details.add(new JLabel("Score : " + state.getScore()
+            + " | Bloque : " + state.getBlockedTurns() + " tour(s)"));
+        card.add(details, BorderLayout.CENTER);
+
+        JPanel tokenRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        tokenRow.setBackground(Color.WHITE);
+        tokenRow.add(new JLabel("Jetons :"));
+        if (state.getTokens().isEmpty()) {
+            tokenRow.add(new JLabel("aucun"));
+        } else {
+            for (Token token : state.getTokens()) {
+                tokenRow.add(new TokenDot(token.getColor()));
+            }
+        }
+        card.add(tokenRow, BorderLayout.SOUTH);
+
+        return card;
+    }
+
     private String buildStatusText() {
         StringBuilder sb = new StringBuilder();
         sb.append("JOUEURS\n\n");
@@ -420,6 +481,11 @@ public class GameUI extends JFrame {
         area.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
     }
 
+    private void configureStatusPanel() {
+        statusPanel.setLayout(new BoxLayout(statusPanel, BoxLayout.Y_AXIS));
+        statusPanel.setBackground(new Color(248, 250, 252));
+    }
+
     private void configureMovementArea() {
         movementArea.setEditable(false);
         movementArea.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
@@ -464,6 +530,33 @@ public class GameUI extends JFrame {
             this.type = type;
             this.playerName = playerName;
             this.text = text;
+        }
+    }
+
+    private class TokenDot extends JComponent {
+        private final Token.Color tokenColor;
+
+        TokenDot(Token.Color tokenColor) {
+            this.tokenColor = tokenColor;
+            setPreferredSize(new Dimension(18, 18));
+            setMinimumSize(new Dimension(18, 18));
+            setToolTipText(tokenColor.name());
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int size = Math.min(getWidth(), getHeight()) - 3;
+            int x = (getWidth() - size) / 2;
+            int y = (getHeight() - size) / 2;
+
+            g.setColor(toAwtColor(tokenColor));
+            g.fillOval(x, y, size, size);
+            g.setColor(new Color(51, 65, 85));
+            g.drawOval(x, y, size, size);
+            g.dispose();
         }
     }
 
